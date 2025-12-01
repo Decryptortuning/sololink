@@ -2,7 +2,7 @@
 
 # Pixhawk Initialization and Firmware Upgrade
 
-import ConfigParser
+import configparser as ConfigParser
 import glob
 import json
 import logging
@@ -133,7 +133,7 @@ def config_write(config):
     os.system("cp %s %s" % (sololink_conf, sololink_back))
     os.system("md5sum %s > %s.md5" % (sololink_back, sololink_back))
     os.system("sync")
-    f = open(sololink_conf, 'wb')
+    f = open(sololink_conf, 'w')
     config.write(f)
     f.close()
     os.system("md5sum %s > %s.md5" % (sololink_conf, sololink_conf))
@@ -595,19 +595,19 @@ def load(firmware_path):
 def check_usb():
     dev_name = create_usb_serial()
     if dev_name is None:
-        print "ERROR creating usb serial device"
+        print("ERROR creating usb serial device")
         return
-    print "created %s" % dev_name
+    print("created %s" % dev_name)
     time.sleep(1)
     s = serial.Serial(port=dev_name, timeout=1)
-    print "opened %s" % dev_name
+    print("opened %s" % dev_name)
     d = s.read(100)
-    print [hex(ord(b)) for b in d]
+    print([hex(b) for b in d])
     s.close()
-    print "closed %s" % dev_name
+    print("closed %s" % dev_name)
     time.sleep(1)
     delete_usb_serial()
-    print "deleted %s" % dev_name
+    print("deleted %s" % dev_name)
 
 
 # verify usb (test)
@@ -770,10 +770,10 @@ def initialize():
 
     start_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
     led.blink(1000, 100)
-    print "pixhawk..."
+    print("pixhawk...")
     baud = get_baud()
     if baud == None:
-        print "pixhawk: ERROR checking baud"
+        print("pixhawk: ERROR checking baud")
         logger.error("finding baud")
         logger.error("pixhawk status: no response")
         # pixhawk might be stuck in bootloader
@@ -801,7 +801,7 @@ def initialize():
     elif os.path.exists("/log/.factory") and (baud is not None) and verify_usb():
         logger.info("pixhawk: factory - not loading firmware")
     else:
-        print "pixhawk: loading firmware"
+        print("pixhawk: loading firmware")
         logger.info("%s:", firmware_path)
         for v in firmware_version:
             logger.info("%-20s %s", v, firmware_version[v])
@@ -816,7 +816,7 @@ def initialize():
                 rebootPixhawk()
                 logger.info("...Reset complete")
         else:
-            print "pixhawk: ERROR loading firmware"
+            print("pixhawk: ERROR loading firmware")
             logger.error("pixhawk status: can't load")
 
     os.system("rm -f /log/.factory")
@@ -835,9 +835,9 @@ def initialize():
     if "build_version" in running_version \
         and running_version["build_version"] != "unknown":
         logger.info("pixhawk status: ready")
-        print "pixhawk: running %s" % running_version["build_version"]
+        print("pixhawk: running %s" % running_version["build_version"])
     else:
-        print "pixhawk: ERROR checking version"
+        print("pixhawk: ERROR checking version")
     led.off()
     end_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
     logger.debug("pixhawk initialization took %0.3f sec",
@@ -888,22 +888,22 @@ if __name__ == "__main__":
         except Exception as ex:
             logger.error("unhandled exception!")
             except_str = traceback.format_exc()
-            print except_str
+            print(except_str)
             except_str_list = except_str.split('\n')
             for str in except_str_list:
                 logger.error(str)
         # try end
 
     if opts.version:
-        print get_version()
+        print(get_version())
 
     if opts.baud:
-        print get_baud()
+        print(get_baud())
 
     if opts.load is not None:
         load(opts.load)
 
     if opts.usb:
-        print check_usb()
+        print(check_usb())
 
     logger.info("pixhawk.py finished")

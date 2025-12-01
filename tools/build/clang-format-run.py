@@ -12,11 +12,11 @@ extensions = (
 def find_clang_format(options):
     for c in options:
         try:
-            v = subprocess.check_output([c, "--version"])
+            v = subprocess.check_output([c, "--version"]).decode(errors="replace")
             return c, v.strip()
         except:
             pass
-    print "can't find clang-format in %s" % str(clang_format_list)
+    print("can't find clang-format in %s" % str(clang_format_list))
     sys.exit(1)
 
 # find the installed version of clang-format - we require at least 3.6
@@ -46,7 +46,7 @@ for root, dirs, files in os.walk("."):
                     diff_files.append(fpath)
 
 if len(diff_files) != 0:
-    print cf_version, "reported differences for the following files:"
+    print(cf_version, "reported differences for the following files:")
     for f in diff_files:
-        print "    ", f
+        print("    ", f)
     sys.exit(1)

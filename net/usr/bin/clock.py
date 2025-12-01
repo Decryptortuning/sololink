@@ -44,7 +44,7 @@ def gettime(clock_id):
 
 def gettime_us(clock_id):
     t = gettime(clock_id)
-    return long(t.tv_sec * 1000000 + (t.tv_nsec + 500) / 1000)
+    return int(t.tv_sec * 1000000 + (t.tv_nsec + 500) // 1000)
 
 def settime(clock_id, t):
     if clock_settime(clock_id, ctypes.pointer(t)) != 0:
@@ -52,24 +52,24 @@ def settime(clock_id, t):
         raise OSError(errno_, os.strerror(errno_))
 
 def settime_us(clock_id, us):
-    t = timespec(us/1000000, (us%1000000) * 1000)
+    t = timespec(us//1000000, (us%1000000) * 1000)
     if clock_settime(clock_id, ctypes.pointer(t)) != 0:
         errno_ = ctypes.get_errno()
         raise OSError(errno_, os.strerror(errno_))
 
 def test(do_set):
     rt = gettime(CLOCK_REALTIME)
-    print "REALTIME:  %10d.%09d" % (rt.tv_sec, rt.tv_nsec)
+    print("REALTIME:  %10d.%09d" % (rt.tv_sec, rt.tv_nsec))
     mt = gettime(CLOCK_MONOTONIC)
-    print "MONOTONIC: %10d.%09d" % (mt.tv_sec, mt.tv_nsec)
+    print("MONOTONIC: %10d.%09d" % (mt.tv_sec, mt.tv_nsec))
     if do_set:
         # WARNING: this sets the time to zero (1/1/1970)
-        print "set time..."
+        print("set time...")
         os.system("date --set=\"@0\"")
         rt = gettime(CLOCK_REALTIME)
-        print "REALTIME:  %10d.%09d" % (rt.tv_sec, rt.tv_nsec)
+        print("REALTIME:  %10d.%09d" % (rt.tv_sec, rt.tv_nsec))
         mt = gettime(CLOCK_MONOTONIC)
-        print "MONOTONIC: %10d.%09d" % (mt.tv_sec, mt.tv_nsec)
+        print("MONOTONIC: %10d.%09d" % (mt.tv_sec, mt.tv_nsec))
 
 if __name__ == "__main__":
     test(False) # True will set your system time to zero

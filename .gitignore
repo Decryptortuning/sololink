@@ -4,6 +4,7 @@
 # object files
 *.o
 *.pyc
+__pycache__/
 
 # pycharm files
 .idea

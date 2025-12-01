@@ -5,7 +5,7 @@
 
 import socket
 
-print "wps_confirm.py starting"
+print("wps_confirm.py starting")
 
 controlSock = "/var/run/hostapd/wlan0-ap"
 
@@ -22,7 +22,7 @@ pinMessage = "WPS_PIN any 74015887"
 s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
 
 try:
-    s.sendto(pinMessage, controlSock)
-    print "pin confirm sent to %s" % (controlSock, )
+    s.sendto(pinMessage.encode(), controlSock)
+    print("pin confirm sent to %s" % (controlSock, ))
 except:
-    print "ERROR sending pin confirm to %s" % (controlSock, )
+    print("ERROR sending pin confirm to %s" % (controlSock, ))

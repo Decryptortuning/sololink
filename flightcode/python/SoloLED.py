@@ -69,7 +69,7 @@ class SoloLED:
     CUSTOM_BYTES_LENGTH = 24
 
     def __init__(self, ip = None, vehicle = None, wait_ready=True):
-        print "Connecting to", ip
+        print("Connecting to", ip)
         if (ip == None):
             ip = "udpin:0.0.0.0:14550"
         if (vehicle == None):
@@ -83,30 +83,32 @@ class SoloLED:
     
     # Set LED macro
     def macro(self, led, macro):
-        print "macro", led, macro
+        print("macro", led, macro)
         self.sendMessage(led, macro)
 
     # Set LED pattern and color (RGB value)
     def rgb(self, led, pattern, red, green, blue):
-        print "rgb", led, pattern, red, green, blue
-        byteArray = bytearray(['R', 'G', 'B', '0', pattern, red, green, blue])
+        print("rgb", led, pattern, red, green, blue)
+        byteArray = bytearray(b"RGB0")
+        byteArray.extend([pattern, red, green, blue])
         self.sendMessage(led, self.MACRO_NOT_A_MACRO_BUT_A_CUSTOM_COMMAND, byteArray)
 
     # Set LED pattern, color (RGB value), and extended parameters
     def rgbExtended(self, led, pattern, red, green, blue, amplitudeRed, amplitudeGreen, amplitudeBlue, period, phaseOffset):
-        print "rgbExtended", led, pattern, red, green, blue, amplitudeRed, amplitudeGreen, amplitudeBlue, period, phaseOffset
-        byteArray = bytearray(['R', 'G', 'B', '1', pattern, red, green, blue, amplitudeRed, amplitudeGreen, amplitudeBlue,
-                               period >> 8, period & 0xff, phaseOffset >> 8, phaseOffset & 0xff])
+        print("rgbExtended", led, pattern, red, green, blue, amplitudeRed, amplitudeGreen, amplitudeBlue, period, phaseOffset)
+        byteArray = bytearray(b"RGB1")
+        byteArray.extend([pattern, red, green, blue, amplitudeRed, amplitudeGreen, amplitudeBlue,
+                          period >> 8, period & 0xff, phaseOffset >> 8, phaseOffset & 0xff])
         self.sendMessage(led, self.MACRO_NOT_A_MACRO_BUT_A_CUSTOM_COMMAND, byteArray)
     
     # reset LED to default behavior
     def reset(self, led):
-        print "reset", led
+        print("reset", led)
         self.macro(led, SoloLED.MACRO_RESET)
 
 
     def sendMessage(self, led, macro, byteArray = bytearray()):
-        print "sendMessage", led, macro, ":".join(str(b) for b in byteArray)
+        print("sendMessage", led, macro, ":".join(str(b) for b in byteArray))
         msg = self.vehicle.message_factory.led_control_encode(0, 0, led, macro, len(byteArray), self.padArray(byteArray))
         self.vehicle.send_mavlink(msg)
         # Can't find a functional flush() operation, so wait instead

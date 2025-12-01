@@ -50,7 +50,7 @@ def rcThreadRun(slipIf):
         for channel in range(8):
             data = rcChannels[channel]
             packet += chr(data % 256)
-            packet += chr(data / 256)
+            packet += chr(data // 256)
         try:
             slipSendLock.acquire()
             slipIf.send(packet)
@@ -83,8 +83,8 @@ def msgThreadRun(slipIf):
             pass # print "PKT_ID_CAL"
         elif pktId == PKT_ID_SYSINFO:
             pass # print "PKT_ID_SYSINFO"
-            pktOut = chr(PKT_ID_SYSINFO) + "012345678901" + \
-                     struct.pack('<H', 0xabcd) + "stm32_sim"
+            pktOut = (chr(PKT_ID_SYSINFO) + "012345678901" +
+                     struct.pack('<H', 0xabcd).decode("latin1") + "stm32_sim")
         elif pktId == PKT_ID_MAVLINK:
             pass # print "PKT_ID_MAVLINK"
         elif pktId == PKT_ID_SET_RAW_IO:
@@ -136,13 +136,13 @@ listenSock.bind(("", opts.port))
 listenSock.listen(1)
 
 while True:
-    print "waiting for connection on port", opts.port
+    print("waiting for connection on port", opts.port)
     try:
         dataSock, remoteAddress = listenSock.accept()
     except:
         # typically ctrl-C
         break
-    print "connection from", remoteAddress
+    print("connection from", remoteAddress)
 
     slipIf = slip.slip(sock1(dataSock))
 

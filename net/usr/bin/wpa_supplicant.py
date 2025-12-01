@@ -134,7 +134,7 @@ def readDict(f, d, skip=False):
                     # read nested element as usual
                     readDict(f, d2)
         else:
-            print 'Match fail:', [ hex(ord(c)) for c in line ]
+            print('Match fail:', [hex(ord(c)) for c in line])
 
     return d
 

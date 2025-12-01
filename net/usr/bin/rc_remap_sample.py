@@ -45,7 +45,7 @@ def remap_thread(sock):
             #print channels[5], "->", gimbal
             channels[5] = gimbal
             if not rc_ipc.put((timestamp, sequence, channels)):
-                print "ERROR returned from rc_ipc.put"
+                print("ERROR returned from rc_ipc.put")
         # end if len(s)...
     # end while True
 
@@ -62,22 +62,22 @@ remap_id.start()
 # command socket. Intercept "start" and "stop" and send command sequences
 # to the command socket starting and stopping the remapping.
 while True:
-    s = raw_input()
+    s = input()
     if s == "START" or s == "start":
         rc_ipc.attach()
         # remapper thread is waiting for packets from the cmd socket but
         # none come in because we have not done the "attach" yet
-        sock.sendto("detach uplink", "/run/rc_uplink_cmd")
+        sock.sendto(b"detach uplink", "/run/rc_uplink_cmd")
         # at this point nothing is writing to the packet shm
-        sock.sendto("attach", "/run/rc_uplink_cmd")
+        sock.sendto(b"attach", "/run/rc_uplink_cmd")
         # now the remapper should be receiving packets on the command socket
         # and for each one received, modifying it and writing it to the shm
     elif s == "STOP" or s == "stop":
-        sock.sendto("detach", "/run/rc_uplink_cmd")
-        sock.sendto("attach uplink", "/run/rc_uplink_cmd")
+        sock.sendto(b"detach", "/run/rc_uplink_cmd")
+        sock.sendto(b"attach uplink", "/run/rc_uplink_cmd")
         # let the thread finish processing any queued rc packets
         time.sleep(0.1)
         # ...then detach the IPC
         rc_ipc.detach()
     else:
-        sock.sendto(s, "/run/rc_uplink_cmd")
+        sock.sendto(s.encode(), "/run/rc_uplink_cmd")

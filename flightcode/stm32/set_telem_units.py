@@ -5,7 +5,7 @@ import set_telem_units_msg
 
 
 def usage():
-    print "usage: set_telem_units.py [metric|imperial]"
+    print("usage: set_telem_units.py [metric|imperial]")
 
 
 if __name__ == "__main__":

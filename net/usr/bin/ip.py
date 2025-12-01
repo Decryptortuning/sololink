@@ -16,10 +16,10 @@ import subprocess
 
 def getMac(ifName):
     try:
-        iwOut = subprocess.check_output(['ip', 'link'], stderr=subprocess.STDOUT)
+        iwOut = subprocess.check_output(['ip', 'link'], stderr=subprocess.STDOUT).decode(errors="replace")
     except:
         return None
-    m = re.search('^[0-9]+: ' + ifName + ': .*\n +link/[a-z]+ ([0-9a-f:]+) brd', iwOut, re.M)
+    m = re.search('^[0-9]+: ' + ifName + ': .*\\n +link/[a-z]+ ([0-9a-f:]+) brd', iwOut, re.M)
     if m:
         return m.group(1)
     return None
@@ -74,4 +74,4 @@ if __name__ == "__main__":
                       help='return last three bytes of interface\'s MAC')
     (opts, args) = parser.parse_args()
     if opts.mac3_ifname is not None:
-        print mac3(opts.mac3_ifname)
+        print(mac3(opts.mac3_ifname))

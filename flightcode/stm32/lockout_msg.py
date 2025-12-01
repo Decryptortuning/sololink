@@ -26,18 +26,20 @@ def send_unlock():
     send(UNLOCK)
 
 def usage():
-    print "usage: lockout_msg.py <lockout>"
-    print "        where <lockout> is one of"
-    print "        lock    show \"update required\" screen"
-    print "        unlock  hide \"update required\" screen"
+    print("usage: lockout_msg.py <lockout>")
+    print("        where <lockout> is one of")
+    print("        lock    show \"update required\" screen")
+    print("        unlock  hide \"update required\" screen")
 
 if __name__ == "__main__":
     # one required argument: "lock" or "unlock"
     if len(sys.argv) != 2:
         usage()
+        sys.exit(1)
     elif sys.argv[1] == "lock":
         send_lock()
     elif sys.argv[1] == "unlock":
         send_unlock()
     else:
         usage()
+        sys.exit(1)

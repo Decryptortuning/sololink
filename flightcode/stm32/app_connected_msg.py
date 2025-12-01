@@ -26,18 +26,20 @@ def send_disconnected():
     send(DISCONNECTED)
 
 def usage():
-    print "usage: app_connected.py <connected>"
-    print "        where <connected> is one of"
-    print "        c[onnected]     tell stm32 app is connected"
-    print "        d[isconnected]  tell stm32 app is disconnected"
+    print("usage: app_connected.py <connected>")
+    print("        where <connected> is one of")
+    print("        c[onnected]     tell stm32 app is connected")
+    print("        d[isconnected]  tell stm32 app is disconnected")
 
 if __name__ == "__main__":
     # one required argument: "c[onnected]" or "d[isconnected]"
     if len(sys.argv) != 2:
         usage()
+        sys.exit(1)
     elif sys.argv[1][0] == "c":
         send_connected()
     elif sys.argv[1][0] == "d":
         send_disconnected()
     else:
         usage()
+        sys.exit(1)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import errno
-import ConfigParser
+import configparser as ConfigParser
 import logging
 import logging.config
 import os
@@ -93,7 +93,7 @@ def pair_button():
             if len(event) != 16:
                 logger.error("event not 16 bytes: len=%d, event=%s",
                              len(event),
-                             str([hex(ord(x)) for x in event]))
+                             str([hex(x if isinstance(x, int) else ord(x)) for x in event]))
             # event is:
             #   struct input_event {
             #       struct timeval time;
@@ -125,7 +125,7 @@ def pair_button():
                     # keep reading events to flush out others
             except:
                 logger.error("error unpacking input event: %s",
-                             str([hex(ord(x)) for x in event]))
+                             str([hex(x if isinstance(x, int) else ord(x)) for x in event]))
         ### end while True
     ### end if not button_error
     return pushed
@@ -542,7 +542,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        check_versions = sololink_config.getboolean("solo", "pairCheckVersions")
+        check_versions = config.getboolean("solo", "pairCheckVersions")
     except:
         check_versions = True # default
         logger.info("using default check_versions=%s", str(check_versions))

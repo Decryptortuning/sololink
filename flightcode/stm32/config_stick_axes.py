@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
 import pprint
-import ConfigParser
+import configparser as ConfigParser
 import sys
 import config_stick_axes_msg
 import param_stored_vals_msg
 
 
 def usage():
-    print "usage: config_stick_axes.py set <config file>"
-    print "           set stick mapping using config file"
-    print "       config_stick_axes.py get <config file>"
-    print "           get stick mapping and compare to config file (\"true\", \"false\")"
+    print("usage: config_stick_axes.py set <config file>")
+    print("           set stick mapping using config file")
+    print("       config_stick_axes.py get <config file>")
+    print("           get stick mapping and compare to config file (\"true\", \"false\")")
 
 
 # read one field from config file and return as integer
@@ -37,7 +37,7 @@ def validate_and_pack_axis_info(cfg, axis):
 
 # read a stick config file and return a message ready to send to STM32
 def msg_from_cfg(cfg):
-    msg = ""
+    msg = b""
     for axis in ["stick-0", "stick-1", "stick-2", "stick-3", "stick-4", "stick-5"]:
         msg += validate_and_pack_axis_info(cfg, axis)
     return msg
@@ -69,14 +69,14 @@ if __name__ == "__main__":
     try:
         cfg.read(sys.argv[2])
     except:
-        print "%s: error opening %s" % (sys.argv[0], sys.argv[2])
+        print("%s: error opening %s" % (sys.argv[0], sys.argv[2]))
         sys.exit(1)
 
     # convert stick configuration to "config stick axes" message
     try:
         request = msg_from_cfg(cfg)
     except:
-        print "%s: error converting %s to request" % (sys.argv[0], sys.argv[2])
+        print("%s: error converting %s to request" % (sys.argv[0], sys.argv[2]))
         sys.exit(1)
 
     if sys.argv[1] == "set":
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     # unpack request to dictionary for verification or compare below
     request = config_stick_axes_msg.unpack(request)
     if verbose:
-        print "request message:"
+        print("request message:")
         pp.pprint(request)
 
     # retrieve parameters
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     # params is a string; unpack to a dictionary
     params = param_stored_vals_msg.unpack(params)
     if verbose:
-        print "params message:"
+        print("params message:")
         pp.pprint(params)
 
     # verify that the request matches the params read back
@@ -104,17 +104,17 @@ if __name__ == "__main__":
     else:
         match = False
         if sys.argv[1] == "set":
-            print "stick mapping returned does not match requested"
-            print "request:"
+            print("stick mapping returned does not match requested")
+            print("request:")
             pp.pprint(request)
-            print "params:"
+            print("params:")
             pp.pprint(params['rcSticks'])
             sys.exit(1)
 
     if sys.argv[1] == "get":
         if match:
-            print "true"
+            print("true")
         else:
-            print "false"
+            print("false")
 
     sys.exit(0)

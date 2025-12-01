@@ -103,12 +103,12 @@ class SoloModule(mp_module.MPModule):
                                                          remnoise=0, rxerrors=0,
                                                          fixed=0)
                 except Exception as excEncode:
-                    print "solo: master encode exception", excEncode
+                    print("solo: master encode exception", excEncode)
                 else:
                     try:
                         master.mav.send(msg)
                     except Exception as excSend:
-                        print "solo: master send exception:", excSend
+                        print("solo: master send exception:", excSend)
 
             # Send status to all slaves.
             for slave in self.mpstate.mav_outputs:
@@ -124,12 +124,12 @@ class SoloModule(mp_module.MPModule):
                                                         remnoise=0, rxerrors=0,
                                                         fixed=0)
                 except Exception as excEncode:
-                    print "solo: slave encode exception", excEncode
+                    print("solo: slave encode exception", excEncode)
                 else:
                     try:
                         slave.mav.send(msg)
                     except Exception as excSend:
-                        print "solo: slave send exception:", excSend
+                        print("solo: slave send exception:", excSend)
 
 
 def init(mpstate):

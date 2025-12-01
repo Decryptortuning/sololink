@@ -29,16 +29,17 @@ def send_fail():
     send(FAIL)
 
 def usage():
-    print "usage: updater_msg.py <status>"
-    print "        where <status> is one of"
-    print "        start   show \"updating system\" screen"
-    print "        success show \"update complete\" screen"
-    print "        fail    show \"update failed\" screen"
+    print("usage: updater_msg.py <status>")
+    print("        where <status> is one of")
+    print("        start   show \"updating system\" screen")
+    print("        success show \"update complete\" screen")
+    print("        fail    show \"update failed\" screen")
 
 if __name__ == "__main__":
     # one required argument: "start", "success", or "fail"
     if len(sys.argv) != 2:
         usage()
+        sys.exit(1)
     elif sys.argv[1] == "start":
         send_start()
     elif sys.argv[1] == "success":
@@ -47,3 +48,4 @@ if __name__ == "__main__":
         send_fail()
     else:
         usage()
+        sys.exit(1)

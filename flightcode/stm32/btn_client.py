@@ -9,27 +9,27 @@ HOST = "10.1.1.1"
 PORT = 5016
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-print "connecting to", HOST, ":", PORT, "...",
+print("connecting to %s : %s ..." % (HOST, PORT), end="")
 s.connect((HOST, PORT))
-print "OK"
+print("OK")
 
 def in_thread(s):
     while True:
         msg = btn_msg.recv(s)
         if msg is None:
-            print "received \"None\""
+            print("received \"None\"")
             break
         elif len(msg) != 4:
-            print "received funky message: ", str(msg)
+            print("received funky message: ", str(msg))
         else:
-            print "received:", msg[0], \
-                  btn_msg.ButtonName[msg[1]], \
-                  btn_msg.EventName[msg[2]], msg[3]
+            print("received:", msg[0],
+                  btn_msg.ButtonName[msg[1]],
+                  btn_msg.EventName[msg[2]], msg[3])
         if btn_msg.msg_buf_long != 0:
-            print "btn_msg.msg_buf_long=%d!" % btn_msg.msg_buf_long
+            print("btn_msg.msg_buf_long=%d!" % btn_msg.msg_buf_long)
             btn_msg.msg_buf_long = 0
         if btn_msg.msg_buf_short != 0:
-            print "btn_msg.msg_buf_short=%d!" % btn_msg.msg_buf_short
+            print("btn_msg.msg_buf_short=%d!" % btn_msg.msg_buf_short)
             btn_msg.msg_buf_short = 0
 
 in_id = threading.Thread(target=in_thread, args=(s,))
@@ -39,7 +39,7 @@ in_id.start()
 format = 1
 while True:
 
-    desc = raw_input()
+    desc = input()
 
     # allow changing which message goes out
     if desc == "1":

@@ -28,19 +28,21 @@ class WpaControl:
     def run_cmd(self, cmd):
         """run a command and return the output"""
         if self.verbose:
-            start_us = clock.gettime_us(CLOCK_MONOTONIC)
+            start_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
+        cmd_bytes = cmd.encode() if isinstance(cmd, str) else cmd
         try:
-            self.sock.sendto(cmd, self.sockaddr_remote)
+            self.sock.sendto(cmd_bytes, self.sockaddr_remote)
         except:
             # control socket probably gone
-            rsp = ""
+            rsp = b""
         else:
             rsp = self.sock.recv(1024)
+        rsp_str = rsp.decode(errors="replace") if isinstance(rsp, (bytes, bytearray)) else str(rsp)
         if self.verbose:
-            end_us = clock.gettime_us(CLOCK_MONOTONIC)
-            print "command \"%s\", response \"%s\" in %0.3f sec" % \
-                  (cmd, rsp, (end_us - start_us) / 1000000.0)
-        return rsp
+            end_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
+            print("command \"%s\", response \"%s\" in %0.3f sec" % \
+                  (cmd, rsp_str, (end_us - start_us) / 1000000.0))
+        return rsp_str
 
     def run_cmd_ok(self, cmd):
         """run a command that should return OK or FAIL"""
@@ -50,7 +52,7 @@ class WpaControl:
             return True
         if rsp == "FAIL":
             return False
-        print "run_cmd_ok: rsp=\"%s\"" % (rsp, )
+        print("run_cmd_ok: rsp=\"%s\"" % (rsp, ))
         raise RuntimeError
 
     def run_cmd_int(self, cmd):
@@ -111,7 +113,7 @@ class WpaControl:
             status = self.get_status()
             now_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
             if verbose_orig and status != last_status:
-                print status
+                print(status)
                 last_status = status
             if "wpa_state" in status and status["wpa_state"] == final_state:
                 self.verbose = verbose_orig

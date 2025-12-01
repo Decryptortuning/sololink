@@ -133,8 +133,9 @@ else:
 semver = "unknown"
 try:
     output = subprocess.check_output(["/usr/bin/gimbal_setup", "--port=%s" % pixhawk_usb])
-    print(output.strip())
-    version = search(ur"v(\d+.\d+.\d+)", output)
+    output_text = output.decode(errors="replace")
+    print(output_text.strip())
+    version = search(r"v(\d+.\d+.\d+)", output_text)
     if version:
         semver = version.group(1)
 except Exception:
@@ -162,4 +163,3 @@ else:
     writeVerFile(AxonVersion, AxonRelease)
 
 disconnectAndExit()
-

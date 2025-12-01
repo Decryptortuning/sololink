@@ -41,7 +41,7 @@ def toLED(led):
 def toPattern(pattern):
     return getattr(SoloLED, "PATTERN_" + pattern.upper())
 
-ledChoices = choices=["all", "front_left", "front_right", "back_left", "back_right"]
+ledChoices = ["all", "front_left", "front_right", "back_left", "back_right"]
 parser = argparse.ArgumentParser()
 parser.add_argument("--reset", action=AppendAction, dest="commands", choices=ledChoices, help="Reset to default color and pattern.")
 parser.add_argument("--pattern", action=AppendAction, dest="commands", choices=["sine", "solid", "siren", "strobe", "fadein", "fadeout"], help="Set LED flash pattern.")
@@ -100,9 +100,9 @@ for command in parsedArgs.commands:
     elif (commandName == "reset"):
         soloLED.reset(toLED(commandArgs))
     else:
-        raise ValueError, "Unrecognized command name " + commandName
+        raise ValueError("Unrecognized command name " + commandName)
 
 #sleep(10)
 
 soloLED.close()
-print "Done."
+print("Done.")

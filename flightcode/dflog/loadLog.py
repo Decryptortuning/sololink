@@ -6,7 +6,6 @@ import os
 import time
 from pymavlink import mavutil
 import glob
-import ConfigParser
 import shutil
 from datetime import datetime
 import argparse
@@ -57,21 +56,21 @@ parser.add_argument("lognum", help="Log number to download, or 'latest'")
 args = parser.parse_args()
 
 #Log downloading process
-print "Pixhawk log loader"
+print("Pixhawk log loader")
 
 #Set the USB select GPIOs
 openSetClose(SELECT_GPIO, "1")
 openSetClose(ENABLE_GPIO, "0")
 time.sleep(1)
 
-print "Checking for pixhawk on USB"
+print("Checking for pixhawk on USB")
 
 usb_devs = glob.glob('/dev/serial/by-id/usb-3D*')
 if not usb_devs:
-    print "No pixhawk found on USB.  Exiting."
+    print("No pixhawk found on USB.  Exiting.")
     disconnectAndExit()
     
-print "Pixhawk found on USB, requesting log."
+print("Pixhawk found on USB, requesting log.")
 pixhawk_usb = usb_devs[-1]
 m = mavutil.mavlink_connection(pixhawk_usb)
 
@@ -79,4 +78,3 @@ m = mavutil.mavlink_connection(pixhawk_usb)
 ret = subprocess.call(["dflog", str(args.lognum)])
 
 disconnectAndExit()
-

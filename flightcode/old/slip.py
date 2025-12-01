@@ -66,6 +66,12 @@ class slip():
 
         pktTime = None
         pkt = []
+        def _as_char(val):
+            if isinstance(val, bytes):
+                return val.decode("latin1")
+            if isinstance(val, int):
+                return chr(val)
+            return val
 
         if not self._inSync:
             now = datetime.datetime.now()
@@ -78,7 +84,7 @@ class slip():
                 self._syncLogLast = now
             # find the next END
             while True:
-                b = self._stream.read()
+                b = _as_char(self._stream.read())
                 if len(b) == 0:
                     return None, None # timeout
                 self.counts['BYTE'] += 1
@@ -91,7 +97,7 @@ class slip():
 
         # read packet
         while True:
-            b = self._stream.read()
+            b = _as_char(self._stream.read())
             if len(b) == 0:
                 return None, None # timeout
             self.counts['BYTE'] += 1
@@ -111,7 +117,7 @@ class slip():
                 return pktTime, pkt
 
             if b == slip.ESC:
-                b = self._stream.read()
+                b = _as_char(self._stream.read())
                 if len(b) == 0:
                     return None, None # timeout
                 self.counts['BYTE'] += 1
@@ -128,7 +134,7 @@ class slip():
             # Sanity check
             if len(pkt) > slip.maxPktLen:
                 # Something is wrong
-                slip.desync('TOO_LONG')
+                self.desync('TOO_LONG')
 
 
     # Send one SLIP-encoded packet.
@@ -136,19 +142,27 @@ class slip():
     # (e.g. string, list of single-char strings)
     def send(self, pkt):
 
-        self._stream.write(slip.END) # may be optional
+        def _as_char(val):
+            if isinstance(val, bytes):
+                return val.decode("latin1")
+            if isinstance(val, int):
+                return chr(val)
+            return val
+
+        self._stream.write(slip.END.encode("latin1")) # may be optional
 
         for c in pkt:
+            c = _as_char(c)
             if c == slip.END:
-                self._stream.write(slip.ESC)
-                self._stream.write(slip.ESC_END)
+                self._stream.write(slip.ESC.encode("latin1"))
+                self._stream.write(slip.ESC_END.encode("latin1"))
             elif c == slip.ESC:
-                self._stream.write(slip.ESC)
-                self._stream.write(slip.ESC_ESC)
+                self._stream.write(slip.ESC.encode("latin1"))
+                self._stream.write(slip.ESC_ESC.encode("latin1"))
             else:
-                self._stream.write(c)
+                self._stream.write(c.encode("latin1"))
 
-        self._stream.write(slip.END)
+        self._stream.write(slip.END.encode("latin1"))
 
 
 
@@ -185,8 +199,10 @@ if __name__ == "__main__":
 
     testSer = dataSource(testData)
 
+    s = slip(testSer)
+
     while True:
         try:
-            print recv(testSer)
-        except:
+            print(s.recv())
+        except Exception:
             break

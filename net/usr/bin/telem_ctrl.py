@@ -2,7 +2,7 @@
 
 # Forward telemetry to everyone attached to the AP.
 
-import ConfigParser
+import configparser as ConfigParser
 import datetime
 import logging
 import logging.config
@@ -106,15 +106,15 @@ def get_stations(sock):
     arp_table = get_arp_table()
 
     # query hostapd for all attached stations
-    sock.sendto("STA-FIRST", hostapd_ctrl_sock_name)
+    sock.sendto(b"STA-FIRST", hostapd_ctrl_sock_name)
     p = sock.recv(1024)
     while p:
-        lines = p.splitlines()
+        lines = p.decode(errors="replace").splitlines()
         mac = lines[0]
         ips = get_mac_ips(mac, arp_table)
         for ip in ips:
             stations.append((mac, ip))
-        sock.sendto("STA-NEXT %s" % mac, hostapd_ctrl_sock_name)
+        sock.sendto(("STA-NEXT %s" % mac).encode(), hostapd_ctrl_sock_name)
         p = sock.recv(1024)
 
     logger.debug("get_stations: %s", str(arp_table))

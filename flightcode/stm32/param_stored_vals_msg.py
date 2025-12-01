@@ -16,7 +16,7 @@ PARAM_STORED_VALS_PORT = 5011
 
 def send():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.sendto("", ("127.0.0.1", PARAM_STORED_VALS_PORT))
+    s.sendto(b"", ("127.0.0.1", PARAM_STORED_VALS_PORT))
     s.close()
 
 ##max_delay = 0.0
@@ -30,12 +30,12 @@ def fetch():
     s.settimeout(0.2)
     # send request
     ##start_time = datetime.datetime.now()
-    s.sendto("", ("127.0.0.1", PARAM_STORED_VALS_PORT))
+    s.sendto(b"", ("127.0.0.1", PARAM_STORED_VALS_PORT))
     # wait for response
     try:
         msg = s.recv(256)
     except:
-        msg = ""
+        msg = b""
     ##else:
     ##    delta_time = datetime.datetime.now() - start_time
     ##    delta_time = delta_time.total_seconds()
@@ -114,7 +114,7 @@ def unpack(msg):
                          buttonConfig[1],
                          buttonConfig[2],
                          buttonConfig[3],
-                         buttonConfig[4].partition("\0")[0] )
+                         buttonConfig[4].partition(b"\0")[0].decode("latin1") )
         buttonConfigs.append(buttonConfig)
 
     sweepConfigs = []
@@ -131,13 +131,14 @@ def unpack(msg):
 
 
 def usage():
-    print "usage: param_stored_vals_msg.py"
+    print("usage: param_stored_vals_msg.py")
 
 
 if __name__ == "__main__":
     # no arguments
     if len(sys.argv) != 1:
         usage()
+        sys.exit(1)
     else:
         msg = fetch()
         msg = unpack(msg)

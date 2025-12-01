@@ -6,7 +6,6 @@ import os
 import time
 from pymavlink import mavutil
 import glob
-import ConfigParser
 import shutil
 from datetime import datetime
 import re
@@ -64,14 +63,14 @@ def disconnectAndExit():
     sys.exit()
 
 #Bootloading process
-print "Pixhawk bootloader"
+print("Pixhawk bootloader")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("file_specified", nargs='?')
 args = parser.parse_args()
 
 if args.file_specified and not os.path.isfile(args.file_specified):
-    print "File \"%s\" not found" % (args.file_specified)
+    print("File \"%s\" not found" % (args.file_specified))
     sys.exit()
 if args.file_specified:
     latest = args.file_specified
@@ -79,7 +78,7 @@ else:
     #See what version we have
     files = glob.glob('/firmware/*.px4')
     if not files:
-        print "No Pixhawk firmware available for update."
+        print("No Pixhawk firmware available for update.")
         sys.exit()
 
     latest = files[-1]
@@ -89,7 +88,7 @@ latest_json = json.loads(open(latest).read())
 try:
     ArduVersion = latest_json['ardupilot_git_hash'][:8]
 except:
-    print ".px4 file does not have ardupilot git hash"
+    print(".px4 file does not have ardupilot git hash")
     ArduVersion = "00000000"
     PX4Version = "00000000"
     NuttXVersion = "00000000"
@@ -97,10 +96,10 @@ else:
     PX4Version = latest_json['px4_git_hash'][:8]
     NuttXVersion = latest_json['nuttx_git_hash'][:8]
 
-print "Read file versions:"
-print "    ArduPilot: " + ArduVersion
-print "          PX4: " + PX4Version
-print "        NuttX: " + NuttXVersion
+print("Read file versions:")
+print("    ArduPilot: " + ArduVersion)
+print("          PX4: " + PX4Version)
+print("        NuttX: " + NuttXVersion)
 
 #Set the LED to a blink pattern so the user knows we're updating
 os.system("echo timer > /sys/class/leds/user2/trigger")
@@ -115,10 +114,10 @@ time.sleep(1)
 
 usb_devs = glob.glob('/dev/serial/by-id/usb-3D*')
 if not usb_devs:
-    print "No pixhawk found on USB.  Exiting."
+    print("No pixhawk found on USB.  Exiting.")
     disconnectAndExit()
 
-print "Pixhawk found on USB."
+print("Pixhawk found on USB.")
 pixhawk_usb = usb_devs[-1]
 m = mavutil.mavlink_connection(pixhawk_usb)
 
@@ -132,16 +131,16 @@ if not args.file_specified:
             pixPX4Version =  ''.join(chr(e) for e in msg.middleware_custom_version)
             pixNuttXVersion = ''.join(chr(e) for e in msg.os_custom_version)
 
-            print "Pixhawk returned versions:"
-            print "    ArduPilot: " + pixArduVersion
-            print "          PX4: " + pixPX4Version
-            print "        NuttX: " + pixNuttXVersion
+            print("Pixhawk returned versions:")
+            print("    ArduPilot: " + pixArduVersion)
+            print("          PX4: " + pixPX4Version)
+            print("        NuttX: " + pixNuttXVersion)
 
             if(ArduVersion != pixArduVersion or PX4Version != pixPX4Version or NuttXVersion != pixNuttXVersion):
-                print "New version available, bootloading"
+                print("New version available, bootloading")
                 break
             else:
-                print "Already latest version"
+                print("Already latest version")
                 m.close()
                 try:
                     os.mkdir("/firmware/loaded/")
@@ -151,20 +150,20 @@ if not args.file_specified:
                 writeVerFile(ArduVersion,PX4Version,NuttXVersion,latest) 
                 disconnectAndExit()
         else:
-            print "Unable to get Ardupilot version, forcing bootload."
+            print("Unable to get Ardupilot version, forcing bootload.")
             break
 
 m.close()
 
-print "loading file %s" % (os.path.abspath(latest))
+print("loading file %s" % (os.path.abspath(latest)))
 
 #Bootload the pixhawk now (probably not the best way to do this)
 ret = subprocess.call(["python","/usr/bin/px_uploader.py","--port=/dev/serial/by-id/usb-3D_Robotics*",latest])
 
 if(ret != 0):
-    print "Unable to bootload the pixhawk, closing"
+    print("Unable to bootload the pixhawk, closing")
 else:
-    print "Succesfully bootloaded Pixhawk"
+    print("Succesfully bootloaded Pixhawk")
     #move the loaded firmware to a new /firmware/loaded/ folder
     shutil.rmtree("/firmware/loaded/", ignore_errors=True)
     try:

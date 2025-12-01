@@ -72,7 +72,7 @@ def get_current_delta_angles(link):
 
 def get_current_delta_velocity(link, timeout=1):
     if not isinstance(link.file, mavserial):
-        print "accelerometer calibration requires a serial connection"
+        print("accelerometer calibration requires a serial connection")
         sys.exit(1)    
     link.file.port.flushInput() # clear any messages in the buffer, so we get a current one
     while(True):
@@ -204,17 +204,17 @@ if __name__ == '__main__':
         print("Power On")
         setup_param.enable_torques_message(link, enabled=False)
         for i in range(5):
-            print setup_home.calibrate_joints(link)
+            print(setup_home.calibrate_joints(link))
 
     elif args.printjoints:
         while True:
             msg = get_gimbal_report(link)
-            print msg.joint_az, msg.joint_roll, msg.joint_el
+            print(msg.joint_az, msg.joint_roll, msg.joint_el)
 
     elif args.printall:
         while True:
-            print get_any_message(link)
+            print(get_any_message(link))
 
     else:
         while True:
-            print time.time(), get_gimbal_message(link)
+            print(time.time(), get_gimbal_message(link))

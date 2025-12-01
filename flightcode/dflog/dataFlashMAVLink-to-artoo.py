@@ -5,15 +5,16 @@ import time
 import string
 import os
 import re
+import sys
 
 actually_sync_logs_to_artoo = False
 
 class RecentLogLinker:
     '''RecentLogLinker manages links to the most recent logs.  These links are used by the app to retrieve the most recent logs
     '''
-    def __init__(self, directory,link_dir):
+    def __init__(self, directory, link_dir=None):
         self.directory = directory #location of dataflashlogs
-        self.symlink_directory = link_dir #loction of links to the dataflashlogs
+        self.symlink_directory = link_dir or directory #loction of links to the dataflashlogs
         # if you reduce this number, you're going to have to ensure we
         # remove all old stale RECENT links somehow!
         self.num_recent_links_to_create = 10
@@ -58,7 +59,7 @@ class RecentLogLinker:
             try:
                 os.symlink(source, link_path)
             except OSError as e:
-                print "Failed to link ({0} to {1}): {2}".format(source, link_path,  e.strerror)
+                print("Failed to link ({0} to {1}): {2}".format(source, link_path,  e.strerror))
                 break
 
 class LogPruner:
@@ -92,7 +93,7 @@ class LogPruner:
             try:
                 os.unlink(to_remove)
             except IOError as e:
-                print "Failed to remove ({0}): {1}".format(to_remove, e.strerror)
+                print("Failed to remove ({0}): {1}".format(to_remove, e.strerror))
                 break
 
 class LogSyncer:
@@ -118,9 +119,9 @@ class LogSyncer:
             print("short rsync dest")
             sys.exit(1)
 
-        recentloglinker = RecentLogLinker(src)
+        recentloglinker = RecentLogLinker(self.rsyncSrc, self.rsyncSrc)
 
-	while True:
+        while True:
             recentloglinker.update_links()
 
             cmd = [ 'ionice', '-c', '3', 'nice',
@@ -133,10 +134,14 @@ class LogSyncer:
 #            print "cmd: %s" % (' '.join(cmd))
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout,stderr = p.communicate()
+            if stdout is not None:
+                stdout = stdout.decode(errors="replace")
+            if stderr is not None:
+                stderr = stderr.decode(errors="replace")
             rc = p.returncode
             if rc != 0:
-                print "stderr: (%s)" % stderr
-                time.sleep(1);
+                print("stderr: (%s)" % stderr)
+                time.sleep(1)
                 continue
 
 #            print "stdout: (%s)" % stdout
@@ -144,7 +149,7 @@ class LogSyncer:
             timeout = 10
             if string.find(stdout,"xfr") != -1:
                 timeout = 1
-            time.sleep(timeout);
+            time.sleep(timeout)
 
 # TODO: get artoo's address from config
 # TODO: get source and dest addresses from config
@@ -162,11 +167,11 @@ if actually_sync_logs_to_artoo:
     l.run()
 else:
     # we still update the links on SoloLink so the app can fetch them
-    recentloglinker = RecentLogLinker(src,link_dir)
+    recentloglinker = RecentLogLinker(src, link_dir)
 
     while True:
         recentloglinker.update_links()
-        time.sleep(10);
+        time.sleep(10)
 
 # neither reached nor necessary if the LogSyncer runs
 while True:

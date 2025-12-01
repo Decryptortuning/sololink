@@ -25,12 +25,11 @@ try:
             msg = "cal is not blank"
             status = 0
             break
-except:
+except Exception:
     msg = "error reading cal (readout protect?)"
-    pass
 
 cmd.releaseChip()
 
-print msg
+print(msg)
 
 sys.exit(status)

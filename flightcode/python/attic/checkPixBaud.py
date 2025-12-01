@@ -6,7 +6,7 @@ import os
 import time
 from pymavlink import mavutil
 import glob
-import ConfigParser
+import configparser as ConfigParser
 import shutil
 from datetime import datetime
 import re
@@ -56,7 +56,7 @@ def disconnectAndExit():
     sys.exit()
 
 #Bootloading process
-print "Pixhawk telem baudrate checker"
+print("Pixhawk telem baudrate checker")
 
 config = ConfigParser.SafeConfigParser()
 config.read(sololink_conf)
@@ -69,10 +69,10 @@ m.set_rtscts(True)
 hb = m.recv_match(type='HEARTBEAT', blocking=True, timeout=1)
 m.close()
 if not hb:
-    print "Did not receieve a heartbeat on telem.  Checking USB."
+    print("Did not receieve a heartbeat on telem.  Checking USB.")
 else:
-    print "Got a heartbeat, this baudrate is correct."
-    disconnectAndExit();
+    print("Got a heartbeat, this baudrate is correct.")
+    disconnectAndExit()
 
 #Set the USB select GPIOs
 openSetClose(SELECT_GPIO, "1")
@@ -82,21 +82,21 @@ time.sleep(1)
 #Try to get a heartbeat on the USB.
 usb_devs = glob.glob('/dev/serial/by-id/usb-3D*')
 if not usb_devs:
-    print "No pixhawk found on USB. Exiting."
+    print("No pixhawk found on USB. Exiting.")
     disconnectAndExit()
 
-print "Pixhawk found on USB, requesting SERIAL1_BAUD"
+print("Pixhawk found on USB, requesting SERIAL1_BAUD")
 pixhawk_usb = usb_devs[-1]
 m = mavutil.mavlink_connection(pixhawk_usb)
 
 m.param_fetch_one("SERIAL1_BAUD")
 msg = m.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
 if not msg:
-    print "Did not get param back!"
+    print("Did not get param back!")
     m.close()
     disconnectAndExit()
 if msg:
-    print "Got value:" + str(msg.param_value)
+    print("Got value:" + str(msg.param_value))
 
     if(msg.param_value == 1.):
         baud_setting = 1200
@@ -123,11 +123,11 @@ if msg:
     elif(msg.param_value == 1500.):
         baud_setting = 1500000
     else:
-        print "Unknown baudrate!"
+        print("Unknown baudrate!")
         m.close()
         disconnectAndExit()
         
-    print "Setting telemBaud to " + str(baud_setting)
+    print("Setting telemBaud to " + str(baud_setting))
     os.system("sed -i \"s/telemBaud.*=.*/telemBaud = "+str(baud_setting)+"/\" /etc/sololink.conf")
     os.system("md5sum /etc/sololink.conf > /etc/sololink.conf.md5")
 

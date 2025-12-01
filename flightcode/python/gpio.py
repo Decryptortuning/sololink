@@ -25,7 +25,7 @@ def set_dir(gpio, direction):
     try:
         f = open(filename, "w")
     except:
-        print "error opening %s (need to export first?)" % filename
+        print("error opening %s (need to export first?)" % filename)
         return
     f.write(direction)
     f.close()
@@ -39,10 +39,10 @@ def set(gpio, value):
     try:
         f = open(filename, "w")
     except:
-        print "error opening %s (need to export first?)" % filename
+        print("error opening %s (need to export first?)" % filename)
         return
     try:
         f.write(str(value))
         f.close()
     except:
-        print "error setting %s (is it an output?)" % filename
+        print("error setting %s (is it an output?)" % filename)

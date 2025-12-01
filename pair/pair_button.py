@@ -35,9 +35,9 @@ button_file = None
 #     type=0x0000 code=0x0000 value=0x00000000
 
 try:
-    f = open(button_filename, "w")
+    f = open(button_filename, "wb")
 except:
-    print "can't open %s for writing" % button_filename
+    print("can't open %s for writing" % button_filename)
     sys.exit(1)
 
 evt = struct.pack("@QHHi", 0, 0x0001, 0x0211, 1)

@@ -55,10 +55,10 @@ def create_rssi_msg(mav, dbm):
 
 # take a mavlink message and print the remrssi
 def show_remrssi(m):
-    rssi = ord(m[11])
+    rssi = m[11] if isinstance(m, (bytes, bytearray)) else ord(m[11])
     if rssi >= 128:
         rssi -= 256
-    print rssi
+    print(rssi)
 
 
 logging.config.fileConfig(conf_filename)

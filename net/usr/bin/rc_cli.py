@@ -15,7 +15,7 @@ def in_thread(sock):
                 (timestamp, sequence,
                  channels[0], channels[1], channels[2], channels[3],
                  channels[4], channels[5], channels[6], channels[7])
-        print pkt
+        print(pkt)
 
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
 sock.bind("/tmp/rc_cli." + str(os.getpid()))
@@ -25,5 +25,5 @@ in_id.daemon = True
 in_id.start()
 
 while True:
-    s = raw_input()
-    sock.sendto(s, "/run/rc_uplink_cmd")
+    s = input()
+    sock.sendto(s.encode(), "/run/rc_uplink_cmd")

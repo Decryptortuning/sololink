@@ -3,7 +3,7 @@
 # This uses the above '#!' instead of '#!/usr/bin/env python' so that the
 # busybox 'pidof' can find this process by name.
 
-import ConfigParser
+import configparser as ConfigParser
 import clock
 import logging
 import logging.config
@@ -58,7 +58,7 @@ byte_count = 0
 now_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
 
 log_interval_s = 10
-log_interval_us = long(log_interval_s * 1000000)
+log_interval_us = int(log_interval_s * 1000000)
 log_time_us = now_us + log_interval_us
 
 app_time_us = now_us

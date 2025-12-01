@@ -3,7 +3,7 @@
 # This uses the above '#!' instead of '#!/usr/bin/env python' so that the
 # busybox 'pidof' can find this process by name.
 
-import ConfigParser
+import configparser as ConfigParser
 import logging
 import logging.config
 import optparse
@@ -36,7 +36,7 @@ def get_request(sock):
     # XXX This is inefficient but simple; we never want to read beyond the end
     # of the request we are receiving, to avoid needing to save state between
     # calls to get_request.
-    pkt = ""
+    pkt = bytearray()
     while len(pkt) < 4:
         try:
             b = sock.recv(1)
@@ -51,9 +51,9 @@ def get_request(sock):
             return None
         if not b:
             return None
-        pkt += b
+        pkt.extend(b)
 
-    (pkt_len, ) = struct.unpack("!I", pkt)
+    (pkt_len, ) = struct.unpack("!I", bytes(pkt))
 
     logger.debug("packet length %d", pkt_len)
 
@@ -70,9 +70,9 @@ def get_request(sock):
             return None
         if not b:
             return None
-        pkt += b
+        pkt.extend(b)
 
-    return pkt
+    return bytes(pkt)
 
 
 
@@ -132,7 +132,7 @@ def app_server():
             if not pkt:
                 # Remote end closed the connection
                 break
-            logger.info("received request: %s", str([hex(ord(x)) for x in pkt]))
+            logger.info("received request: %s", str([hex(x) for x in pkt]))
         ### end while True
 
         app_connected_msg.send_disconnected()

@@ -29,7 +29,7 @@
 # it is the serial port to the STM32, but for testing it can be a TCP socket
 # to the STM32 "simulator" (see stm32_sim.py).
 
-import ConfigParser
+import configparser as ConfigParser
 import datetime
 import logd
 import logging
@@ -53,7 +53,7 @@ if True:
     configFileName = "/etc/sololink.conf"
     soloAddressFileName = "/var/run/solo.ip"
 else:
-    print "USING DEBUG FILE NAMES"
+    print("USING DEBUG FILE NAMES")
     configFileName = "./sololink.conf"
     soloAddressFileName = "./solo.ip"
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # standard python
-import ConfigParser
+import configparser as ConfigParser
 import logging
 import logging.config
 import re

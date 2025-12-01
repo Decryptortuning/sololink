@@ -7,13 +7,13 @@ def run_cmd(ifname, cmd):
     """run a wpa_cli command, return the output"""
     cmd.insert(0, "wpa_cli")
     cmd.insert(1, "-i" + ifname)
-    return subprocess.check_output(cmd)
+    return subprocess.check_output(cmd).decode(errors="replace")
 
 def run_cmd_ok(ifname, cmd):
     """run a wpa_cli command that should return OK"""
     cmd.insert(0, "wpa_cli")
     cmd.insert(1, "-i" + ifname)
-    out = subprocess.check_output(cmd)
+    out = subprocess.check_output(cmd).decode(errors="replace")
     m = re.match("OK", out)
     if not m:
         raise RuntimeError
@@ -22,7 +22,7 @@ def run_cmd_int(ifname, cmd):
     """run a wpa_cli command that should return an integer"""
     cmd.insert(0, "wpa_cli")
     cmd.insert(1, "-i" + ifname)
-    out = subprocess.check_output(cmd)
+    out = subprocess.check_output(cmd).decode(errors="replace")
     m = re.match("([0-9]+)", out)
     if not m:
         raise RuntimeError
@@ -32,7 +32,7 @@ def run_cmd_int(ifname, cmd):
 def get_status(ifname):
     """get status from wpa_cli"""
     cmd = ["wpa_cli", "-i" + ifname, "status"]
-    out = subprocess.check_output(cmd)
+    out = subprocess.check_output(cmd).decode(errors="replace")
     out = out.splitlines()
     status = {}
     for line in out:
@@ -78,7 +78,7 @@ def poll_status(ifname, final_state, timeout=None, verbose=False):
         now_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
         stat = get_status(ifname)
         if verbose and stat != last_stat:
-            print stat
+            print(stat)
             last_stat = stat
         if "wpa_state" in stat:
             new_state = stat["wpa_state"]

@@ -38,14 +38,14 @@ def get_all_task_stats():
 
 
 def print_all_task_stats(ps):
-    print "%5s %-15s %4s %6s %6s" % ("pid", "name", "prio", "utime", "stime")
+    print("%5s %-15s %4s %6s %6s" % ("pid", "name", "prio", "utime", "stime"))
     for p in ps:
         if not p:
             continue
         m = re.match("([0-9]+) \((.*?)\) (.) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+)", p)
         if not m:
             continue
-        print "%5s %-15s %4s %6s %6s" % (m.group(1), m.group(2), m.group(18), m.group(14), m.group(15))
+        print("%5s %-15s %4s %6s %6s" % (m.group(1), m.group(2), m.group(18), m.group(14), m.group(15)))
 
 
 if __name__ == "__main__":

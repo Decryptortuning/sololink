@@ -63,11 +63,11 @@ if __name__ == "__main__":
                     val = 127
                 #print q, qs[q], str(qs[q]), str(qs[q])[1]
                 line[val] = q[1]
-            print "".join(line)
+            print("".join(line))
         else:
             for q in qs:
                 # if too many packets pending twice in a row, print message
                 if q in last and last[q] > 120 and qs[q]['pending'] > 120:
-                    print q, last[q], qs[q]['pending']
+                    print(q, last[q], qs[q]['pending'])
                 last[q] = qs[q]['pending']
         time.sleep(0.1)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-import cPickle
+import pickle
 import datetime
 import socket
 import struct
@@ -21,6 +21,7 @@ LOG_DIR_0_DEFAULT = "/log"
 LOG_DIR_1_DEFAULT = "/var/local"
 
 debug = False
+pickle_error = 0
 
 
 class Stm32Logger(object):
@@ -41,7 +42,7 @@ class Stm32Logger(object):
 
     def log_packet(self, pktTime, pkt):
         data = (TYPE_STM32_PACKET, datetime.datetime.now(), pktTime, pkt)
-        pick = cPickle.dumps(data)
+        pick = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         try:
             self.log_sock.sendto(pick, self.pipe_name)
         except:
@@ -66,7 +67,7 @@ class PixInLogger(object):
 
     def log_packet(self, pkt):
         data = (TYPE_PIXIN_PACKET, datetime.datetime.now(), pkt)
-        pick = cPickle.dumps(data)
+        pick = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         try:
             self.log_sock.sendto(pick, self.pipe_name)
         except:
@@ -91,7 +92,7 @@ class PixOutLogger(object):
 
     def log_packet(self, pkt):
         data = (TYPE_PIXOUT_PACKET, datetime.datetime.now(), pkt)
-        pick = cPickle.dumps(data)
+        pick = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         try:
             self.log_sock.sendto(pick, self.pipe_name)
         except:
@@ -119,6 +120,7 @@ class Logger(object):
         self.pipe_name = pipe_name
         self.file_root = file_root
         self.file_ext = file_ext
+        self.pickle_error = 0
         # delete named socket if left over from a previous run
         try:
             os.remove(self.pipe_name)
@@ -129,7 +131,7 @@ class Logger(object):
         try:
             self.sock.bind(self.pipe_name)
         except:
-            print "ERROR creating pipe %s" % (self.pipe_name,)
+            print("ERROR creating pipe %s" % (self.pipe_name,))
             raise
         # always start with a new log file
         self.roll()
@@ -148,16 +150,14 @@ class Logger(object):
         typeId = data_tuple[0]
         logTime = data_tuple[1]
         pktTime = data_tuple[2]
-        pkt = data_tuple[3]
+        raw_pkt = data_tuple[3]
+        pkt = raw_pkt.encode("latin1") if isinstance(raw_pkt, str) else bytes(raw_pkt)
 
         logTime = logTime - self.epoch # timedelta
         pktTime = pktTime - self.epoch # timedelta
         pktLen = len(pkt)
 
-        if pktLen > 0:
-            pktId = ord(pkt[0])
-        else:
-            pktId = -1
+        pktId = pkt[0] if pktLen > 0 else -1
 
         s1 = "%d,%d,%d,%d,%d,%d,%d" % (typeId,
                                        logTime.days * 86400 + logTime.seconds,
@@ -168,17 +168,17 @@ class Logger(object):
                                        pktId)
 
         if pktId == 0:
-            s2 = ",%s\n" % (pkt[1:],)
+            s2 = ",%s\n" % (pkt[1:].decode("latin1", errors="replace"),)
         elif pktId == PKT_ID_DSM:
             if pktLen == 17:
-                s2 = ",%d,%d,%d,%d,%d,%d,%d,%d\n" % (ord(pkt[2]) * 256 + ord(pkt[1]),
-                                                     ord(pkt[4]) * 256 + ord(pkt[3]),
-                                                     ord(pkt[6]) * 256 + ord(pkt[5]),
-                                                     ord(pkt[8]) * 256 + ord(pkt[7]),
-                                                     ord(pkt[10]) * 256 + ord(pkt[9]),
-                                                     ord(pkt[12]) * 256 + ord(pkt[11]),
-                                                     ord(pkt[14]) * 256 + ord(pkt[13]),
-                                                     ord(pkt[16]) * 256 + ord(pkt[15]))
+                s2 = ",%d,%d,%d,%d,%d,%d,%d,%d\n" % (pkt[2] * 256 + pkt[1],
+                                                     pkt[4] * 256 + pkt[3],
+                                                     pkt[6] * 256 + pkt[5],
+                                                     pkt[8] * 256 + pkt[7],
+                                                     pkt[10] * 256 + pkt[9],
+                                                     pkt[12] * 256 + pkt[11],
+                                                     pkt[14] * 256 + pkt[13],
+                                                     pkt[16] * 256 + pkt[15])
             else:
                 s2 = "\n"
         elif pktId == PKT_ID_SYSINFO:
@@ -188,15 +188,15 @@ class Logger(object):
             if pktLen >= 13:
                 # unique_id
                 s2 = ",%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x" % \
-                    (ord(pkt[1]), ord(pkt[2]), ord(pkt[3]), ord(pkt[4]),
-                     ord(pkt[5]), ord(pkt[6]), ord(pkt[7]), ord(pkt[8]),
-                     ord(pkt[9]), ord(pkt[10]), ord(pkt[11]), ord(pkt[12]))
+                    (pkt[1], pkt[2], pkt[3], pkt[4],
+                     pkt[5], pkt[6], pkt[7], pkt[8],
+                     pkt[9], pkt[10], pkt[11], pkt[12])
                 if pktLen >= 15:
                     # hw_version
-                    s2 += ",%02x:%02x" % (ord(pkt[13]), ord(pkt[14]))
+                    s2 += ",%02x:%02x" % (pkt[13], pkt[14])
                     if pktLen >= 16:
                         # sw_version
-                        s2 += ",%s" % ("".join(pkt[15:]),)
+                        s2 += ",%s" % (pkt[15:].decode("latin1", errors="replace"),)
                 s2 += "\n"
             else:
                 s2 = "\n"
@@ -214,7 +214,8 @@ class Logger(object):
 
         typeId = data_tuple[0]
         logTime = data_tuple[1]
-        pkt = data_tuple[2]
+        raw_pkt = data_tuple[2]
+        pkt = raw_pkt.encode("latin1") if isinstance(raw_pkt, str) else bytes(raw_pkt)
 
         logTime = logTime - self.epoch # timedelta
         pktLen = len(pkt)
@@ -251,7 +252,8 @@ class Logger(object):
 
         typeId = data_tuple[0]
         logTime = data_tuple[1]
-        pkt = data_tuple[2]
+        raw_pkt = data_tuple[2]
+        pkt = raw_pkt.encode("latin1") if isinstance(raw_pkt, str) else bytes(raw_pkt)
 
         logTime = logTime - self.epoch # timedelta
         pktLen = len(pkt)
@@ -279,7 +281,8 @@ class Logger(object):
         pktIdx = 0
         while pktIdx < pktLen:
             # magic
-            s += ",%d" % struct.unpack(">H", pkt[pktIdx:pktIdx+2])
+            (magic,) = struct.unpack(">H", pkt[pktIdx:pktIdx+2])
+            s += ",%d" % magic
             pktIdx += 2
             # channels
             for chIdx in range(1, 8):
@@ -327,7 +330,7 @@ class Logger(object):
             try:
                 os.rename(src, dst)
                 if debug:
-                    print "rename %s to %s" % (src, dst)
+                    print("rename %s to %s" % (src, dst))
             except:
                 pass # error renaming file?
         ### end for file_num
@@ -352,7 +355,7 @@ class Logger(object):
             try:
                 stat_info = os.stat(src)
                 if debug:
-                    print "delete %s" % (src,)
+                    print("delete %s" % (src,))
                 os.remove(src)
                 self.total_bytes -= stat_info.st_size
             except:
@@ -364,9 +367,9 @@ class Logger(object):
             # data is pickled python, consisting of an integer type indicator
             # followed by type-specific data.
             try:
-                data_tuple = cPickle.loads(data)
+                data_tuple = pickle.loads(data)
             except:
-                pickle_error += 1
+                self.pickle_error += 1
                 continue
             typeId = data_tuple[0]
             if typeId == TYPE_STM32_PACKET:
@@ -380,7 +383,7 @@ class Logger(object):
             try:
                 logfile = open(self.file_name(0), "a")
             except:
-                print "ERROR opening log file %s for writing" % (self.file_name(0),)
+                print("ERROR opening log file %s for writing" % (self.file_name(0),))
                 raise
             logfile.write(s)
             logfile.close()
