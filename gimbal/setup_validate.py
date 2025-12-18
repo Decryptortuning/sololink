@@ -1,13 +1,13 @@
 import setup_comutation
 import setup_factory_pub
 import setup_param
-from distutils.version import LooseVersion
 from pymavlink.mavparm import MAVParmDict
 from pymavlink.rotmat import Vector3
 import setup_mavlink
 import math
 
 EXPECTED_VERSION = '0.26.0'
+EXPECTED_VERSION_TUPLE = tuple(int(x) for x in EXPECTED_VERSION.split("."))
 
 EXPECTED_SERIAL_NUMBER_START = 'GB11A'
 EXPETED_ASSEMBLY_DATE_MIN = 1434778800 # Sat Jun 20 02:40:00 BRT 2015
@@ -138,9 +138,8 @@ def validate_version(link, swver=None):
         swver = setup_factory_pub.read_software_version(link, timeout=2)
     if not swver:
         return Results.Error
-    ver = LooseVersion("%i.%i.%i" % (swver[0], swver[1], swver[2]))
-    ver_expected = LooseVersion(EXPECTED_VERSION)
-    if ver >= ver_expected:
+    ver_tuple = (int(swver[0]), int(swver[1]), int(swver[2]))
+    if ver_tuple >= EXPECTED_VERSION_TUPLE:
         return Results.Pass
     else:
         return Results.Fail
