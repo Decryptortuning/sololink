@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Python interface into the posix clock functions
 # clock_gettime(), clock_settime()

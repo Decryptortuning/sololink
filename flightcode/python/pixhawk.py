@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Pixhawk Initialization and Firmware Upgrade
 
@@ -142,7 +142,7 @@ def config_write(config):
 
 
 def create_tty_mavlink(serial_baud=None):
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -220,7 +220,7 @@ def get_baudlist(config=None, expected_baud=None):
 #     None if Pixhawk not detected or other error
 def get_baud():
 
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -278,7 +278,7 @@ def get_baud():
 # Set baud rate in config file if necessary
 def set_baud(new_baud):
 
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -307,7 +307,7 @@ def set_baud(new_baud):
 #   each value is a string, or missing if could not get version from pixhawk
 def get_version():
 
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -359,7 +359,7 @@ def get_version():
         if st is not None:
             logger.info("Status Text: %s" %st)
             # "APM:Copter solo-0.1.2 (b2dacc52)"
-            match = re.match("APM:.*?solo-([0-9]+\.[0-9]+\.[0-9]+)", st.text)
+            match = re.match(r"APM:.*?solo-([0-9]+\.[0-9]+\.[0-9]+)", st.text)
             if match:
                 logger.debug("build version received in %0.3f sec",
                              (end_us - start_us) / 1000000.0)
@@ -370,7 +370,7 @@ def get_version():
             # "ArduCopter V3.2.1 (b2dacc52)"
             # This is matched in case someone is messing with their firmware
             # Anything looking like a version x.y.z is pulled out
-            match = re.match(".*?([0-9]+\.[0-9]+\.[0-9]+)", st.text)
+            match = re.match(r".*?([0-9]+\.[0-9]+\.[0-9]+)", st.text)
             if match:
                 logger.warning("firmware is not specifically for solo")
                 logger.info("build version received in %0.3f sec",
@@ -392,7 +392,7 @@ def get_version():
 def checkPixhawkVersion():
     global cube_version
     # Setup serial comm to the pixhawk
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -703,7 +703,7 @@ def version_string(version):
 
 def resetParameters():
     logger.info("   Resetting parameters...")
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 
@@ -740,7 +740,7 @@ def recoveryCheck():
 def rebootPixhawk():
     logger.info("   Rebooting pixhawk...")
     global cube_version
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     config.read(sololink_conf)
 

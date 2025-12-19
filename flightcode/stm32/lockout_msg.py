@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Show/hide "update required" screen.
 # Required artoo 0.7.0 or later.

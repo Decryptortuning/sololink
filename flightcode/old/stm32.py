@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Receive and handle messages from the STM32: stm32.receiver waits for messages
 # from the STM32. When one arrives, strip off the one-byte packet ID, and call

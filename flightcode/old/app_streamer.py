@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # This uses the above '#!' instead of '#!/usr/bin/env python' so that the
 # busybox 'pidof' can find this process by name.

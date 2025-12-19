@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # stm32loader in /usr/bin is not on the default python path; make
 # sure we always find it no matter where this script is installed

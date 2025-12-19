@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # This does the equivalent of:
 # hostapd_cli wps_pin any <pin>

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Forward telemetry to everyone attached to the AP.
 
@@ -23,7 +23,7 @@ logger.info("starting")
 
 solo_conf = "/etc/sololink.conf"
 
-config = ConfigParser.SafeConfigParser()
+config = ConfigParser.ConfigParser()
 config.read(solo_conf)
 
 hostapd_ctrl_sock_name = "/var/run/hostapd/wlan0-ap"
@@ -58,18 +58,22 @@ def get_arp_table():
 
     arp_table_file = "/proc/net/arp"
     try:
-        f = open(arp_table_file)
-    except:
+        with open(arp_table_file, "r") as f:
+            lines = f.readlines()
+    except OSError:
         logger.error("can't open %s", arp_table_file)
         return arp_table
 
-    for line in f:
-        m = re.match("([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*?(\
-[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:\
-[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F])", line)
+    arp_re = re.compile(
+        r"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*?"
+        r"([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:"
+        r"[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})"
+    )
+
+    for line in lines:
+        m = arp_re.match(line)
         if m:
             arp_table.append((m.group(1), m.group(2).lower()))
-    f.close()
 
     logger.debug("get_arp_table: %s", str(arp_table))
 
@@ -174,11 +178,11 @@ current_stations = []
 now_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
 
 # how often to update list of stations to send telemetry to
-station_update_interval_us = long(5 * 1000000)
+station_update_interval_us = int(5 * 1000000)
 station_update_time_us = now_us
 
 # how often to log packet counts
-report_interval_us = long(10 * 1000000)
+report_interval_us = int(10 * 1000000)
 report_time_us = now_us + report_interval_us
 
 got_gps_time = False
@@ -220,16 +224,16 @@ while True:
             pkt_corrupt = True
         else:
             # manual decode of mavlink header
-            magic = ord(pkt[0])
+            magic = pkt[0]
             if magic != 254:
                 pkt_corrupt = True
-            length = ord(pkt[1])
+            length = pkt[1]
             if length != (pkt_len - 8):
                 pkt_corrupt = True
-            sequence = ord(pkt[2])
-            src_sys = ord(pkt[3])
-            src_comp = ord(pkt[4])
-            msg_id = ord(pkt[5])
+            sequence = pkt[2]
+            src_sys = pkt[3]
+            src_comp = pkt[4]
+            msg_id = pkt[5]
 
         if pkt_corrupt:
 
@@ -249,7 +253,7 @@ while True:
                 # pkt[:6] works even if pkt is less than 6 chars, e.g.
                 # '1234'[:6] = '1234'
                 logger.info("downlink: corrupt packet: %s",
-                            str([ord(c) for c in pkt[:6]]))
+                            str(list(pkt[:6])))
                 drop_corrupt_us = now_us + drop_corrupt_min_us
             else:
                 # don't log it

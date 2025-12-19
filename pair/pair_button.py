@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Run this to simulate pressing the pair button on Solo.
 

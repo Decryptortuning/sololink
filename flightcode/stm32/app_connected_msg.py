@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Send "app connected" message
 # Required artoo 0.7.9 or later.

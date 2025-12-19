@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import re
 import sys
@@ -9,45 +9,50 @@ import time
 
 # This takes ~20 msec
 # (VO):  qnum: 3 qdepth:  0 ampdu-depth:  0 pending:   0 stopped: 0
-r = re.compile(\
-"\
-\((.+)\):\
- +([a-z-]+): +([0-9]+)\
- +([a-z-]+): +([0-9]+)\
- +([a-z-]+): +([0-9]+)\
- +([a-z-]+): +([0-9]+)\
- +([a-z-]+): +([0-9]+)\
-")
+r = re.compile(
+    r"\((?P<queue>.+)\):"
+    r"\s+(?P<label1>[a-z-]+):\s+(?P<val1>[0-9]+)"
+    r"\s+(?P<label2>[a-z-]+):\s+(?P<val2>[0-9]+)"
+    r"\s+(?P<label3>[a-z-]+):\s+(?P<val3>[0-9]+)"
+    r"\s+(?P<label4>[a-z-]+):\s+(?P<val4>[0-9]+)"
+    r"\s+(?P<label5>[a-z-]+):\s+(?P<val5>[0-9]+)"
+)
 
 
 def get_queues():
     try:
         f = open("/sys/kernel/debug/ieee80211/phy0/ath9k/queues")
-    except:
-        return None
+    except OSError:
+        return {}
     s = f.read()
     f.close()
     s = s.splitlines()
-    d = { }
+    d = {}
     for line in s:
         m = r.match(line)
-        v = { }
-        v[m.group(2)] = int(m.group(3))
-        v[m.group(4)] = int(m.group(5))
-        v[m.group(6)] = int(m.group(7))
-        v[m.group(8)] = int(m.group(9))
-        v[m.group(10)] = int(m.group(11))
-        d[m.group(1)] = v
+        if not m:
+            continue
+        v = {
+            m.group("label1"): int(m.group("val1")),
+            m.group("label2"): int(m.group("val2")),
+            m.group("label3"): int(m.group("val3")),
+            m.group("label4"): int(m.group("val4")),
+            m.group("label5"): int(m.group("val5")),
+        }
+        d[m.group("queue")] = v
     return d
 
 
 graph = True
 
 if __name__ == "__main__":
-    last = { }
+    last = {}
     count = 0
     while True:
         qs = get_queues()
+        if not qs:
+            time.sleep(0.1)
+            continue
         if graph:
             if count == 0:
                 line = ['-'] * 128

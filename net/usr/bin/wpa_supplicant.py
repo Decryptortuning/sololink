@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Provide read/write access to wpa_supplicant.conf as a python dictionary
 

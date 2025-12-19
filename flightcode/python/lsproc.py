@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import re
@@ -9,13 +9,12 @@ import re
 
 
 def get_task_stats(pid, tid):
+    """Return the raw /proc stat line for a thread or None on error."""
     try:
-        f = open("/proc/%s/task/%s/stat" % (str(pid), str(tid)))
-    except:
+        with open(f"/proc/{pid}/task/{tid}/stat", "r") as f:
+            return f.read()
+    except OSError:
         return None
-    s = f.read()
-    f.close()
-    return s
 
 
 def get_all_task_stats():
@@ -31,7 +30,8 @@ def get_all_task_stats():
             except:
                 continue
             s = get_task_stats(pid, tid)
-            p.append(s)
+            if s:
+                p.append(s)
         ### for g
     ### for f
     return p
@@ -39,10 +39,30 @@ def get_all_task_stats():
 
 def print_all_task_stats(ps):
     print("%5s %-15s %4s %6s %6s" % ("pid", "name", "prio", "utime", "stime"))
+    stat_re = re.compile(
+        r"([0-9]+) "          # pid
+        r"\((.*?)\) "         # comm (can contain spaces, so keep minimal match)
+        r"(.) "               # state
+        r"([0-9\-]+) "        # ppid
+        r"([0-9\-]+) "        # pgrp
+        r"([0-9\-]+) "        # session
+        r"([0-9\-]+) "        # tty_nr
+        r"([0-9\-]+) "        # tpgid
+        r"([0-9\-]+) "        # flags
+        r"([0-9\-]+) "        # minflt
+        r"([0-9\-]+) "        # cminflt
+        r"([0-9\-]+) "        # majflt
+        r"([0-9\-]+) "        # cmajflt
+        r"([0-9\-]+) "        # utime
+        r"([0-9\-]+) "        # stime
+        r"([0-9\-]+) "        # cutime
+        r"([0-9\-]+) "        # cstime
+        r"([0-9\-]+) "        # priority
+    )
     for p in ps:
         if not p:
             continue
-        m = re.match("([0-9]+) \((.*?)\) (.) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+) ([0-9\-]+)", p)
+        m = stat_re.match(p)
         if not m:
             continue
         print("%5s %-15s %4s %6s %6s" % (m.group(1), m.group(2), m.group(18), m.group(14), m.group(15)))

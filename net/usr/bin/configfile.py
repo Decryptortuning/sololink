@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Get and set parameters in a configuration file (e.g. /etc/hostapd.conf)
 
