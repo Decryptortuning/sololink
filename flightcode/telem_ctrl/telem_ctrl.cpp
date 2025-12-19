@@ -791,7 +791,7 @@ static void *tlm_main(void *)
             }
 #endif
 
-            syslog(LOG_INFO, msg);
+            syslog(LOG_INFO, "%s", msg);
 
             sources_clear();
             pkts_down_total = 0;

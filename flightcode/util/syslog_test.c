@@ -112,7 +112,7 @@ int syslog_test(void)
         // create a string of length n
         memset(msg, 'X', n);
         msg[n] = '\0';
-        syslog(LOG_INFO, msg);
+        syslog(LOG_INFO, "%s", msg);
         memset(msg, 0, sizeof(msg));
         if ((r = recv(fd, msg, sizeof(msg), 0)) <= 0) {
             fprintf(stderr, "syslog_test: expected message (%s)\n", strerror(errno));

@@ -147,12 +147,12 @@ int create_pipeline(void)
      */
     GstCaps *enccaps;
     if (IS_RECORD_RES() && crop_record_res) {
-        enccaps = gst_caps_new_simple("video/x-raw-yuv", "width", G_TYPE_INT, input_res.width,
+        enccaps = gst_caps_new_simple("video/x-raw", "width", G_TYPE_INT, input_res.width,
                                       "height", G_TYPE_INT, input_res.height, "crop-top",
                                       G_TYPE_INT, (IS_NTSC() ? 60 : 72), "crop-bottom", G_TYPE_INT,
                                       (IS_NTSC() ? 60 : 72), NULL);
     } else {
-        enccaps = gst_caps_new_simple("video/x-raw-yuv", "width", G_TYPE_INT, input_res.width,
+        enccaps = gst_caps_new_simple("video/x-raw", "width", G_TYPE_INT, input_res.width,
                                       "height", G_TYPE_INT, input_res.height, NULL);
     }
     g_object_set(convcapsfilter, "caps", enccaps, NULL);
@@ -160,8 +160,7 @@ int create_pipeline(void)
 
     if (IS_RECORD_RES() && var_stream_res) {
         enccaps = gst_caps_new_simple(
-            "video/x-raw-yuv", "format", GST_TYPE_FOURCC, GST_MAKE_FOURCC('I', '4', '2', '0'),
-            "width", G_TYPE_INT, stream_res.width,
+            "video/x-raw", "format", G_TYPE_STRING, "I420", "width", G_TYPE_INT, stream_res.width,
             /*This next line is ugly but, if the user wants a cropped
              * recording resolution then we handle the cropped stream
              * if it is NTSC or PAL resolution */
@@ -169,8 +168,8 @@ int create_pipeline(void)
             stream_res.height + (crop_record_res ? (IS_NTSC() ? 120 : 144) : 0), NULL);
     } else {
         enccaps = gst_caps_new_simple(
-            "video/x-raw-yuv", "format", GST_TYPE_FOURCC, GST_MAKE_FOURCC('I', '4', '2', '0'),
-            "width", G_TYPE_INT, stream_res.width, "height", G_TYPE_INT, stream_res.height, NULL);
+            "video/x-raw", "format", G_TYPE_STRING, "I420", "width", G_TYPE_INT, stream_res.width,
+            "height", G_TYPE_INT, stream_res.height, NULL);
     }
     g_object_set(enccapsfilter, "caps", enccaps, NULL);
     gst_caps_unref(enccaps);
@@ -317,6 +316,7 @@ int send_sprop(int fd)
     GstStructure *str;
     GstPad *pad;
     int len;
+    int ret = -1;
 
     // Always send to ARTOO's IP on the OOB port.
     memset((char *)&addr, 0, sizeof(addr));
@@ -326,31 +326,38 @@ int send_sprop(int fd)
 
     /*Attempt to pull of the sprop-parameter-sets from the
      * payloader.  If they're OK, send them along */
-    if ((pad = gst_element_get_pad(payloader, "src")) != NULL) {
-        if ((caps = GST_PAD_CAPS(pad)) != NULL) {
-            if ((str = gst_caps_get_structure(caps, 0)) != NULL) {
+    pad = gst_element_get_static_pad(payloader, "src");
+    if (pad != NULL) {
+        caps = gst_pad_get_current_caps(pad);
+        if (caps != NULL) {
+            str = gst_caps_get_structure(caps, 0);
+            if (str != NULL) {
                 gc = gst_structure_get_string(str, "sprop-parameter-sets");
                 if (gc == NULL) {
                     syslog(LOG_ERR, "Unable to get sprop from gstreamer");
                     len = 0;
-                } else
+                } else {
                     len = strlen(gc);
+                }
 
                 if (len > 0) {
                     if (sendto(fd, (const char *)gc, len, 0, (struct sockaddr *)&addr,
                                sizeof(addr)) < len) {
                         syslog(LOG_ERR, "Unable to send data on OOB port\n");
-                        return -1;
-                    } else
-                        return len;
+                        ret = -1;
+                    } else {
+                        ret = len;
+                    }
                 }
             }
+            gst_caps_unref(caps);
         }
+        gst_object_unref(pad);
     }
 
     /* If we sent -1 bytes its entirely possible that
      * the pipeline did not have a prop to get yet */
-    return -1;
+    return ret;
 }
 
 /* The main routine. Argumenets are only for gstreamer,

@@ -39,7 +39,7 @@ dst_port = 5600
 
 app_address_file = ""
 
-config = ConfigParser.SafeConfigParser()
+config = ConfigParser.ConfigParser()
 
 # if the config file is not found, and empty list is returned and the
 # "get" operations later fail

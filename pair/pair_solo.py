@@ -520,7 +520,7 @@ if __name__ == "__main__":
 
     logger.info("pair_solo.py starting")
 
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
 
     # if the config file is not found, an empty list is returned and the "get"
     # operations below fail

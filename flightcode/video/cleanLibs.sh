@@ -16,9 +16,14 @@ if [ -e $RWFS/$LIBDIR/sndast* ] ||
   rm -rf $RWFS/$LIBDIR/.*libfslvpu*
 
   #Remove the gstreamer registry
-  rm -f ~/.gstreamer-0.10/registry.arm.bin
+  rm -f ~/.cache/gstreamer-1.0/registry.* >/dev/null 2>&1
+  rm -f ~/.gstreamer-0.10/registry.arm.bin >/dev/null 2>&1
 
-  #Rebuild the gstreamer library
-  gst-inspect > /dev/null 2>&1
+  #Rebuild the gstreamer registry
+  if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+    gst-inspect-1.0 > /dev/null 2>&1
+  else
+    gst-inspect > /dev/null 2>&1
+  fi
 
 fi

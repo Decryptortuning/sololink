@@ -63,7 +63,7 @@ logger = logging.getLogger("stm32")
 
 logger.info("starting (20141114_1132)")
 
-config = ConfigParser.SafeConfigParser()
+config = ConfigParser.ConfigParser()
 config.read(configFileName)
 
 

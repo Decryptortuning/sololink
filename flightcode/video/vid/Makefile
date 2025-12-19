@@ -9,7 +9,8 @@
 #
 # Now a make in this directory should work.
 
-PKGCONFIG = `pkg-config gstreamer-0.10 --cflags --libs`
+PKG_CONFIG ?= pkg-config
+PKGCONFIG = `$(PKG_CONFIG) gstreamer-1.0 --cflags --libs`
 
 VPATH = ../../ini ../../ini/cpp
 

@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     logger.info("starting")
 
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
 
     # if the config file is not found, and empty list is returned and the
     # "get" operations later fail

@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -246,7 +247,7 @@ bool DataFlash_Logger::make_new_log_filename(char *buffer, uint8_t bufferlen)
         num++;
     }
 
-    if ((fd = open(lastlog_buf, O_WRONLY | O_TRUNC | O_CREAT)) == -1) {
+    if ((fd = open(lastlog_buf, O_WRONLY | O_TRUNC | O_CREAT, 0644)) == -1) {
         // *shrug*  We will continue to overwrite, I guess...
     } else {
         const uint8_t outsize = 16;

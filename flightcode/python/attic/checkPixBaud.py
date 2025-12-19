@@ -58,7 +58,7 @@ def disconnectAndExit():
 #Bootloading process
 print("Pixhawk telem baudrate checker")
 
-config = ConfigParser.SafeConfigParser()
+config = ConfigParser.ConfigParser()
 config.read(sololink_conf)
 telemBaud = config.getint("solo","telemBaud")
 

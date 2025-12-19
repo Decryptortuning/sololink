@@ -22,7 +22,7 @@ logger = logging.getLogger("pixrc")
 
 logger.info("starting (20141114_1132)")
 
-config = ConfigParser.SafeConfigParser()
+config = ConfigParser.ConfigParser()
 config.read("/etc/sololink.conf")
 
 rcDsmDev = config.get("solo", "rcDsmDev")

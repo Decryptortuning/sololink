@@ -34,8 +34,8 @@ logger = logging.getLogger("pair")
 
 logger.info("%s starting", prog_name)
 
-sololink_config = ConfigParser.SafeConfigParser()
-pairing_config = ConfigParser.SafeConfigParser()
+sololink_config = ConfigParser.ConfigParser()
+pairing_config = ConfigParser.ConfigParser()
 
 sololink_config.read(sololink_conf)
 pairing_config.read(pairing_conf)

@@ -9,7 +9,8 @@
 #
 # Now a make in this directory should work.
 
-PKGCONFIG = `pkg-config gstreamer-0.10 --cflags --libs` 
+PKG_CONFIG ?= pkg-config
+PKGCONFIG = `$(PKG_CONFIG) gstreamer-1.0 --cflags --libs`
 
 CFLAGS += $(PKGCONFIG)
 CFLAGS += -Wall
@@ -17,7 +18,7 @@ CFLAGS += -Wall
 all: out
 
 out:
-	$(CC) $(CFLAGS) hdmiout.c -o hdmiout
+	$(CC) $(CFLAGS) $(LDFLAGS) hdmiout.c -o hdmiout
 
 clean:
 	$(RM) *.o *~ hdmiout
