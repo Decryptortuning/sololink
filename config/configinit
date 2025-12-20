@@ -226,8 +226,14 @@ do_merge() {
 for config_name in ${config_names}; do
   config=${ETC}/${config_name}
 
-  # skip any that are not in the read-only FS (e.g. shotmanager on controller)
-  if [ ! -f ${ROFS}/etc/${config_name}.orig ]; then
+  rofs_orig="${ROFS}/etc/${config_name}.orig"
+
+  # Skip any that are not in the read-only FS (e.g. shotmanager on controller).
+  # If the ROFS mount is missing, fall back to /etc so we still initialize.
+  if [ ! -f "${rofs_orig}" ] && [ -f "/etc/${config_name}.orig" ]; then
+    rofs_orig="/etc/${config_name}.orig"
+  fi
+  if [ ! -f "${rofs_orig}" ]; then
     continue
   fi
 
@@ -270,9 +276,9 @@ for config_name in ${config_names}; do
     kmsg -n "initializing ${config}.conf... "
     dmsg ""
     if [ ! -f ${config}.orig ]; then
-      kmsg -n "${config}.orig not found; retrieving from ${ROFS}/etc/${config_name}.orig... "
+      kmsg -n "${config}.orig not found; retrieving from ${rofs_orig}... "
       dmsg ""
-      cp ${ROFS}/etc/${config_name}.orig ${config}.orig
+      cp "${rofs_orig}" ${config}.orig
     fi
     dmsg "copy ${config}.orig -> ${config}.base"
     cp ${config}.orig ${config}.base
