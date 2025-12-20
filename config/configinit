@@ -22,11 +22,16 @@ dmsg() {
   if ${verbose}; then echo "$@"; fi
 }
 
-# Test mode: Ubuntu md5sum is a bit different from busybox md5sum
-# /usr/bin/md5sum is a symlink if it points to busybox
-if [ -h `which md5sum` ]; then
-  # assume busybox
-  # not test mode
+# Prefer target paths when the read-only rootfs is mounted.
+if [ -d /mnt/rootfs.ro ]; then
+  MD5SUM="md5sum -cs"
+  ETC="/etc"
+  ROFS="/mnt/rootfs.ro"
+  kmsg() {
+    echo "$@" > /dev/kmsg
+  }
+elif [ -h "$(command -v md5sum 2>/dev/null)" ]; then
+  # assume busybox (non-test mode)
   MD5SUM="md5sum -cs"
   ETC="/etc"
   ROFS="/mnt/rootfs.ro"
@@ -34,8 +39,7 @@ if [ -h `which md5sum` ]; then
     echo "$@" > /dev/kmsg
   }
 else
-  # assume not busybox; correct for ubuntu but not tested on os-x
-  # test mode
+  # test mode on host
   MD5SUM="md5sum -c --status"
   ETC="./etc"
   ROFS="./rootfs.ro"
