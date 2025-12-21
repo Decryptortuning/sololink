@@ -101,6 +101,9 @@ def _parse_semver(value):
 def _force_update_enabled():
     return os.getenv("ARTOO_FORCE_UPDATE") == "1" or os.path.exists("/log/updates/FORCE_UPDATE")
 
+def _update_enabled():
+    return os.getenv("ARTOO_ENABLE_UPDATE") == "1" or os.path.exists("/log/updates/ENABLE_UPDATE")
+
 
 # return version as string ("unknown" if can't get version)
 def getArtooVersion():
@@ -288,7 +291,11 @@ logger.info("running version: %s", artoo_version)
 if firmware is not None:
     running_semver = _parse_semver(artoo_version)
     firmware_semver = _parse_semver(firmware[1])
-    if _force_update_enabled():
+    if not (_update_enabled() or _force_update_enabled()):
+        logger.info("not updating (artoo updates disabled)")
+        logger.info("to enable: set ARTOO_ENABLE_UPDATE=1 or create /log/updates/ENABLE_UPDATE")
+        logger.info("to force: set ARTOO_FORCE_UPDATE=1 or create /log/updates/FORCE_UPDATE")
+    elif _force_update_enabled():
         logger.info("updating (forced)")
         updateStm32(firmware[0])
         # re-read the version from the running firmware

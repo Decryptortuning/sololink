@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if [ "${ARTOO_ENABLE_UPDATE}" != "1" ] && [ ! -e /log/updates/ENABLE_UPDATE ] && [ "${ARTOO_FORCE_UPDATE}" != "1" ] && [ ! -e /log/updates/FORCE_UPDATE ]; then
+  echo "Artoo updating disabled (set ARTOO_ENABLE_UPDATE=1 or create /log/updates/ENABLE_UPDATE; or use ARTOO_FORCE_UPDATE=1 / /log/updates/FORCE_UPDATE)."
+  exit 0
+fi
+
 #Comment out the RCTX line in /etc/inittab
 sed -i 's/^RCTX.*/#&/g' /etc/inittab
 
