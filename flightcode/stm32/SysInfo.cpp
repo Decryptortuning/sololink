@@ -34,7 +34,10 @@ int SysInfo::upHandler(char serBuf[], int len)
     static bool infoLogged = false;
 
     if (len < 14)
+    {
         syslog(LOG_ERR, "sys: message too short (%d)", len);
+        return 0;
+    }
 
     memcpy(uniqueId, &serBuf[0], sizeof(uniqueId));
 

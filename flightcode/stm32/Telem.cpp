@@ -33,14 +33,20 @@ void Telem::downHandler(int ser_fd, int verbosity)
     LinkPacket packet;
     socklen_t addrlen = sizeof(_sock);
     int recvlen;
-    char msg[1024];
     int encodedLen;
-    SLIPEncoder *slipEnc = new SLIPEncoder(msg, sizeof(msg));
+    static char msg[1024];
+    static SLIPEncoder *slipEnc = new SLIPEncoder(msg, sizeof(msg));
     static uint64_t last_stm_recv_us = 0;
 
     // Attempt to receive data.  This should be good since we got here from
     // a select()
     recvlen = recvfrom(_sock_fd, &packet, sizeof(packet), 0, (struct sockaddr *)&_sock, &addrlen);
+    if (recvlen < 0) {
+        syslog(LOG_ERR, "telem: recvfrom failed");
+        return;
+    }
+    if (recvlen == 0)
+        return;
 
     packet.stm_recv_us = clock_gettime_us(CLOCK_MONOTONIC);
 
@@ -60,11 +66,26 @@ void Telem::downHandler(int ser_fd, int verbosity)
 
     char *b;
     uint8_t *p_payload = packet.payload;
-    while (p_payload < ((uint8_t *)&packet + recvlen)) {
+    uint8_t *packetEnd = (uint8_t *)&packet + recvlen;
+    while (p_payload < packetEnd) {
+        size_t available = (size_t)(packetEnd - p_payload);
+
+        // We access up to p_payload[5] and expect at least the MAVLink v1 header+CRC.
+        if (available < 8) {
+            syslog(LOG_ERR, "telem: short mavlink frame (%lu bytes)", (unsigned long)available);
+            break;
+        }
 
         /* Make sure this is a mavlink packet */
         if (p_payload[0] != 0xFE) {
             syslog(LOG_ERR, "pkt: Got a bad mavlink packet in the LinkPacket");
+            break;
+        }
+
+        unsigned mavLen = p_payload[1] + 8;
+        if (available < (size_t)mavLen) {
+            syslog(LOG_ERR, "telem: truncated mavlink frame (%lu bytes available, %u needed)",
+                   (unsigned long)available, mavLen);
             break;
         }
 
@@ -79,7 +100,11 @@ void Telem::downHandler(int ser_fd, int verbosity)
          * Stick the id type before the start of the mavlink message.*/
         b = (char *)(p_payload - 1);
         b[0] = _pktID;
-        encodedLen = slipEnc->encode(b, (p_payload[1] + 8) + 1);
+        encodedLen = slipEnc->encode(b, mavLen + 1);
+        if (encodedLen < 0) {
+            syslog(LOG_ERR, "telem: slip encode error (len=%u)", mavLen + 1);
+            goto move_on;
+        }
 
 #ifdef INCLUDE_SERIAL_LOG
         // Note that dataflash downlink is not logged,
@@ -90,7 +115,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
         if (write(ser_fd, msg, encodedLen) != encodedLen)
             syslog(LOG_ERR, "pkt: error writing to serial port");
     move_on:
-        p_payload += p_payload[1] + 8;
+        p_payload += mavLen;
     }
 }
 
