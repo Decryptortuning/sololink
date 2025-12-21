@@ -4,6 +4,7 @@ import glob
 import serial
 import slip
 import os
+import re
 import subprocess
 import sys
 import time
@@ -81,6 +82,25 @@ def getFirmwareInfo():
     else:
         version = filename[16:-4]
     return (filename, version)
+
+_SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+
+def _parse_semver(value):
+    if not value:
+        return None
+    match = _SEMVER_RE.search(value)
+    if not match:
+        return None
+    try:
+        return tuple(int(part) for part in match.groups())
+    except ValueError:
+        return None
+
+
+def _force_update_enabled():
+    return os.getenv("ARTOO_FORCE_UPDATE") == "1" or os.path.exists("/log/updates/FORCE_UPDATE")
+
 
 # return version as string ("unknown" if can't get version)
 def getArtooVersion():
@@ -266,13 +286,33 @@ logger.info("running version: %s", artoo_version)
 
 # If we have firmware and it does not match what is running, update the STM32
 if firmware is not None:
-    if artoo_version != firmware[1]:
-        logger.info("updating")
+    running_semver = _parse_semver(artoo_version)
+    firmware_semver = _parse_semver(firmware[1])
+    if _force_update_enabled():
+        logger.info("updating (forced)")
         updateStm32(firmware[0])
         # re-read the version from the running firmware
         artoo_version = getArtooVersion()
-    else:
+    elif firmware_semver is None:
+        logger.info("not updating (can't parse firmware version %s)", firmware[1])
+        logger.info("to force update: set ARTOO_FORCE_UPDATE=1 or create /log/updates/FORCE_UPDATE")
+    elif running_semver is None:
+        logger.info("not updating (can't parse running version %s)", artoo_version)
+        logger.info("to force update: set ARTOO_FORCE_UPDATE=1 or create /log/updates/FORCE_UPDATE")
+    elif firmware_semver > running_semver:
+        logger.info("updating (firmware %s newer than running %s)", firmware[1], artoo_version)
+        updateStm32(firmware[0])
+        # re-read the version from the running firmware
+        artoo_version = getArtooVersion()
+    elif firmware_semver == running_semver:
         logger.info("not updating (new firmware is already running)")
+    else:
+        logger.info(
+            "not updating (running %s is newer than firmware %s; downgrade blocked)",
+            artoo_version,
+            firmware[1],
+        )
+        logger.info("to force update: set ARTOO_FORCE_UPDATE=1 or create /log/updates/FORCE_UPDATE")
     # Whether we used it or not, we are done with the new firmware
     logger.info("moving firmware to loaded")
     mkdir_p("/firmware/loaded")
