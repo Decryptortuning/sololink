@@ -27,31 +27,41 @@ int SLIPEncoder::encode(char *buf, int bufLen) // Encodes an array of bytes
     int i;
 
     // Prepend with an end
+    if (_msgLen + 1 > _maxLen) {
+        reset();
+        return -1;
+    }
     *_msgPtr++ = END;
     _msgLen++;
 
     for (i = 0; i < bufLen; ++i) {
         // Add the esc sequence if necessary
         if (buf[i] == ESC || buf[i] == END) {
+            if (_msgLen + 2 > _maxLen) {
+                reset();
+                return -1;
+            }
             *_msgPtr++ = ESC;
             *_msgPtr++ = (buf[i] == ESC ? ESC_ESC : ESC_END);
             _msgLen += 2;
         }
         // Otherwise just copy bytes
         else {
+            if (_msgLen + 1 > _maxLen) {
+                reset();
+                return -1;
+            }
             *_msgPtr++ = buf[i];
             ++_msgLen;
-        }
-
-        // Error checking
-        if (_msgLen > _maxLen) {
-            reset();
-            return -1;
         }
     }
 
     // Add an END at the end...novel idea.
-    *_msgPtr = END;
+    if (_msgLen + 1 > _maxLen) {
+        reset();
+        return -1;
+    }
+    *_msgPtr++ = END;
     ++_msgLen;
 
     ret = _msgLen;
@@ -90,16 +100,14 @@ int SLIPDecoder::addByte(char *b)
         return retVal;
     }
 
-    // Error check
-    if (_msgLen > _maxLen) {
-        reset();
-        return -1;
-    }
-
     // Otherwise, append the byte to the message.
 
     // Check for ESC and END bytes
     if (_escTriggered) {
+        if (_msgLen >= _maxLen) {
+            reset();
+            return -1;
+        }
         // This should be an ESC_END or ESC_ESC
         if (*b != ESC_END && *b != ESC_ESC) {
             reset();
@@ -115,6 +123,10 @@ int SLIPDecoder::addByte(char *b)
         if (*b == ESC) {
             _escTriggered = true;
         } else {
+            if (_msgLen >= _maxLen) {
+                reset();
+                return -1;
+            }
             *_msgPtr++ = *b;
             ++_msgLen;
         }

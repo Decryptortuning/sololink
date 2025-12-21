@@ -117,8 +117,10 @@ bool TcpClient::do_recv(void)
                 stm32Msg->shot_id = appMsg->shot_id;
                 stm32Msg->state = appMsg->state;
                 // descriptor is everything after pad to the end
-                int msgBodyLen = sizeof(SoloMessage::SetButtonString) - sizeof(SoloMessage::Hdr);
-                int descLen = appMsg->length - msgBodyLen;
+                unsigned msgBodyLen = sizeof(SoloMessage::SetButtonString) - sizeof(SoloMessage::Hdr);
+                unsigned descLen = 0;
+                if (appMsg->length > msgBodyLen)
+                    descLen = appMsg->length - msgBodyLen;
                 // if too long, chop it off
                 if (descLen > (ButtonFunctionCfgMsg::descriptor_max - 1))
                     descLen = (ButtonFunctionCfgMsg::descriptor_max - 1);
@@ -150,8 +152,10 @@ bool TcpClient::do_recv(void)
                 SetShotInfoMsg *stm32Msg = (SetShotInfoMsg *)stm32Buf;
 
                 // descriptor is everything to the end
-                int msgBodyLen = sizeof(SoloMessage::SetShotString) - sizeof(SoloMessage::Hdr);
-                int descLen = appMsg->length - msgBodyLen;
+                unsigned msgBodyLen = sizeof(SoloMessage::SetShotString) - sizeof(SoloMessage::Hdr);
+                unsigned descLen = 0;
+                if (appMsg->length > msgBodyLen)
+                    descLen = appMsg->length - msgBodyLen;
                 // if too long, chop it off
                 if (descLen > (SetShotInfoMsg::descriptor_max - 1))
                     descLen = (SetShotInfoMsg::descriptor_max - 1);
