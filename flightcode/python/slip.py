@@ -13,6 +13,8 @@ class SlipDevice:
 
     def sync(self):
         attempts = 0
+        bytes_read = 0
+        max_bytes = 4096
         def _as_char(val):
             if isinstance(val, bytes):
                 return val.decode("latin1")
@@ -20,12 +22,17 @@ class SlipDevice:
                 return chr(val)
             return val
         while 1:
-            dat = _as_char(self.ser.read())
-            if not dat:
+            raw = self.ser.read()
+            if not raw:
                 attempts += 1
                 if(attempts >= 3):
-                    print("slip sync read fail, breaking")
                     return False
+                continue
+            bytes_read += len(raw)
+            if bytes_read >= max_bytes:
+                return False
+            dat = _as_char(raw)
+            if not dat:
                 continue
 
             if dat == self.END:
@@ -37,6 +44,7 @@ class SlipDevice:
         read a SLIP packet from artoo.
         """
         pkt = []
+        max_packet_bytes = 4096
         def _as_char(val):
             if isinstance(val, bytes):
                 return val.decode("latin1")
@@ -74,6 +82,9 @@ class SlipDevice:
                     pkt.append(b)
             else:
                 pkt.append(b)
+            if len(pkt) >= max_packet_bytes:
+                self.insync = False
+                return []
 
     def write(self, pkt):
         """
