@@ -49,12 +49,23 @@ class SlipDevice:
                 return pkt;
 
         while True:
-            b = _as_char(self.ser.read())
+            raw = self.ser.read()
+            if not raw:
+                # Timeout/no data. Treat as "no packet" so callers can retry.
+                # Also force a resync on next read to avoid getting stuck
+                # in an "insync but no data" state forever.
+                self.insync = False
+                return []
+            b = _as_char(raw)
             if b == self.END:
                 if len(pkt) > 0:
                     return pkt
             elif b == self.ESC:
-                b = _as_char(self.ser.read())
+                raw = self.ser.read()
+                if not raw:
+                    self.insync = False
+                    return []
+                b = _as_char(raw)
                 if b == self.ESC_END:
                     pkt.append(self.END)
                 elif b == self.ESC_ESC:
