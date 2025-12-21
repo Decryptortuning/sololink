@@ -67,7 +67,8 @@ int PacketHandler::upHandler(char serBuf[], int len)
 
 void PacketHandler::downHandler(int ser_fd, uint32_t debug)
 {
-    char buf[BUFSIZE];
+    // Reserve byte 0 for the packet ID.
+    char buf[BUFSIZE + 1];
     socklen_t addrlen = sizeof(_sock);
     int recvlen;
     char msg[1024];
@@ -83,6 +84,10 @@ void PacketHandler::downHandler(int ser_fd, uint32_t debug)
     // Attempt to receive data.  This should be good since we got here from
     // a select()
     recvlen = recvfrom(_sock_fd, &buf[1], BUFSIZE, 0, (struct sockaddr *)&_sock, &addrlen);
+    if (recvlen < 0) {
+        syslog(LOG_ERR, "pkt: recvfrom failed");
+        return;
+    }
 
 #ifdef INCLUDE_SERIAL_LOG
     extern SerialLog *serialLog;
@@ -92,27 +97,28 @@ void PacketHandler::downHandler(int ser_fd, uint32_t debug)
     // Pack this data with slip encoding and dump it down to the STM32
     // Remember that we prepended the packet type
     encodedLen = slipEnc->encode(buf, recvlen + 1);
+    if (encodedLen < 0) {
+        syslog(LOG_ERR, "pkt: slip encode error (len=%d)", recvlen + 1);
+        return;
+    }
 
     if (debug & (1 << _pktID)) {
-        char buf[200];
-        char *p = buf;
-        int m = sizeof(buf) - 1;
+        char dbgBuf[200];
+        char *p = dbgBuf;
+        int m = sizeof(dbgBuf) - 1;
 
-        memset(buf, 0, sizeof(buf));
+        memset(dbgBuf, 0, sizeof(dbgBuf));
 
         for (int i = 0; i < encodedLen; i++) {
-            int n = snprintf(p, m, "%02x ", (unsigned)(msg[i]));
+            int n = snprintf(p, m, "%02x ", (unsigned)(unsigned char)(msg[i]));
             if (n >= m)
                 break;
             p += n;
             m -= n;
         }
 
-        syslog(LOG_INFO, "%s", buf);
+        syslog(LOG_INFO, "%s", dbgBuf);
     }
-
-    if (encodedLen < 0)
-        syslog(LOG_ERR, "pkt: slip error");
 
     if (write(ser_fd, msg, encodedLen) != encodedLen)
         syslog(LOG_ERR, "pkt: could not write to serial port");
