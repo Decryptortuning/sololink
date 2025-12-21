@@ -40,14 +40,14 @@ class HostapdCtrl:
         self.sock.settimeout(0.1)
         while True:
             try:
-                self.sock.sendto("ATTACH", self._sockaddr_remote)
+                self.sock.sendto(b"ATTACH", self._sockaddr_remote)
+                pkt = self.sock.recv(256)
             except:
                 # control socket probably not there
                 pass
             else:
-                pkt = self.sock.recv(256)
                 # On success, we get "OK\n" (3 chars)
-                if pkt and len(pkt) == 3 and pkt.find("OK") != -1:
+                if pkt == b"OK\n" or (pkt and b"OK" in pkt):
                     return True
             timeout_s -= 1.0
             if timeout_s < 0.0:
@@ -86,8 +86,10 @@ class HostapdCtrl:
     #       ("MESSAGE-TYPE", )
     #   1-tuple if message can't be parsed containing entire packet
     def parse(self, pkt):
+        if isinstance(pkt, bytes):
+            pkt = pkt.decode("utf-8", errors="replace")
 
-        regexp = "<3>WPS-PIN-NEEDED ([0-9a-fA-F\-]+) ([0-9a-fA-F:]+) \[(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*?)\]"
+        regexp = r"<3>WPS-PIN-NEEDED ([0-9a-fA-F\-]+) ([0-9a-fA-F:]+) \[(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*?)\|(.*?)\]"
         m = re.match(regexp, pkt)
         if m:
             fields = m.groups()
@@ -99,7 +101,7 @@ class HostapdCtrl:
         # add other messages here as needed
 
         # default: just parse out the message type
-        regexp = "<[0-9]+>(.+?) "
+        regexp = r"<[0-9]+>(.+?) "
         m = re.match(regexp, pkt)
         if m:
             return (m.group(1), )
@@ -110,4 +112,4 @@ class HostapdCtrl:
     # Send pin reply
     def send_pin(self, uuid, pin):
         pin_reply = "WPS_PIN %s %d" % (uuid, pin)
-        self.sock.sendto(pin_reply, self._sockaddr_remote)
+        self.sock.sendto(pin_reply.encode("utf-8"), self._sockaddr_remote)

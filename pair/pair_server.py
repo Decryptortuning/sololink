@@ -10,6 +10,7 @@ import socket
 import struct
 import sys
 import time
+from typing import Optional
 
 # sololink, in /usr/bin
 import clock
@@ -265,18 +266,43 @@ solo_locked_msg_timeout_us = 3000000 # 3 sec
 # accidently rejects his own Solo.
 blacklist = []
 
+def _to_bytes(value) -> bytes:
+    if value is None:
+        return b""
+    if isinstance(value, bytes):
+        return value
+    return str(value).encode("utf-8", errors="replace")
+
+
+def _decode_pkt_field(value: bytes) -> str:
+    return value.strip(b"\r\n\t\0 ").decode("utf-8", errors="replace")
+
+
+def _encode_c_string(value: Optional[str], max_len: int) -> bytes:
+    if value is None:
+        return b"\0"
+    encoded = _to_bytes(value)
+    if len(encoded) > max_len:
+        encoded = encoded[:max_len]
+    return encoded + b"\0"
+
+
+def _conn_ack(cmd_data, sololink_version="", firmware_version=""):
+    return struct.pack(
+        "<BBBB32s32s",
+        pair.CMD_CONN_ACK,
+        pair.SYS_CONTROLLER,
+        cmd_data,
+        0,
+        _to_bytes(sololink_version),
+        _to_bytes(firmware_version),
+    )
+
 
 # Messages we might send to solo (part of the pairing protocol)
-conn_ack_no = struct.pack("<BBBB32s32s", pair.CMD_CONN_ACK,
-                          pair.SYS_CONTROLLER, pair.NO, 0,
-                          "", "")
-conn_ack_yes = struct.pack("<BBBB32s32s", pair.CMD_CONN_ACK,
-                           pair.SYS_CONTROLLER, pair.YES, 0,
-                           controller_sololink_version,
-                           controller_firmware_version)
-conn_ack_pend = struct.pack("<BBBB32s32s", pair.CMD_CONN_ACK,
-                            pair.SYS_CONTROLLER, pair.PEND, 0,
-                            "", "")
+conn_ack_no = _conn_ack(pair.NO)
+conn_ack_yes = _conn_ack(pair.YES, controller_sololink_version, controller_firmware_version)
+conn_ack_pend = _conn_ack(pair.PEND)
 
 
 # Messages we might send to stm32
@@ -284,18 +310,14 @@ conn_ack_pend = struct.pack("<BBBB32s32s", pair.CMD_CONN_ACK,
 # send are always EOS-terminated - max 31 characters + EOS.
 
 def send_pair_request(name):
-    if len(name) > 31:
-        name = name[:31]
-    name = name + "\0"
-    logger.debug("sending pair request to stm32 (%s)", name)
-    stm32_sock.sendto(name, stm32_req_sockaddr_remote)
+    msg = _encode_c_string(name, 31)
+    logger.debug("sending pair request to stm32 (%s)", msg)
+    stm32_sock.sendto(msg, stm32_req_sockaddr_remote)
 
 def send_pair_result(name):
-    if len(name) > 31:
-        name = name[:31]
-    name = name + "\0"
-    logger.debug("sending pair result to stm32 (%s)", name)
-    stm32_sock.sendto(name, stm32_res_sockaddr_remote)
+    msg = _encode_c_string(name, 31)
+    logger.debug("sending pair result to stm32 (%s)", msg)
+    stm32_sock.sendto(msg, stm32_res_sockaddr_remote)
 
 
 def pin_req_valid(pin_req):
@@ -394,7 +416,11 @@ def handle_pin_request(now_us, msg):
 # True if user accepted pairing
 # False if user did not accepted pairing
 def pair_confirm_answer(stm32_pkt):
-    return (ord(stm32_pkt[0]) != 0)
+    if not stm32_pkt:
+        return False
+    if isinstance(stm32_pkt, bytes):
+        return stm32_pkt[0] != 0
+    return ord(stm32_pkt[0]) != 0
 
 
 # validate connect request from solo
@@ -402,9 +428,9 @@ def pair_confirm_answer(stm32_pkt):
 # False if packet not valid
 def connect_request_valid(solo_pkt):
     return (len(solo_pkt) == pair.CONN_MSG_LEN and \
-            ord(solo_pkt[0]) == pair.CMD_CONN_REQ and \
-            ord(solo_pkt[1]) == pair.SYS_SOLO and \
-            ord(solo_pkt[2]) == 0)
+            solo_pkt[0] == pair.CMD_CONN_REQ and \
+            solo_pkt[1] == pair.SYS_SOLO and \
+            solo_pkt[2] == 0)
             # not checking solo_pkt[3] (locked flag)
             # not checking solo_pkt[4:] (version)
 
@@ -488,7 +514,7 @@ while True:
         # The only message from the STM32 we respond to is a pair_confirm,
         # and we only respond to that if we are in STATE_USER_WAIT.
         pkt = stm32_sock.recv(256)
-        logger.debug("message from stm32: %s", str([ord(c) for c in pkt]))
+        logger.debug("message from stm32: %s", str(list(pkt)))
         if state != STATE_USER_WAIT:
             logger.debug("not STATE_USER_WAIT; ignoring message")
         elif pair_confirm_answer(pkt):
@@ -517,7 +543,7 @@ while True:
             # ignore it
         else:
             source_mac = ip_util.get_ip_mac(source_adrs[0])
-            solo_locked = ((ord(pkt[3]) & pair.DATA_LOCKED) != 0)
+            solo_locked = ((pkt[3] & pair.DATA_LOCKED) != 0)
             # source_mac might be None
             if source_mac is not None:
                 logger.debug("connect request from %s", str(source_mac))
@@ -525,8 +551,8 @@ while True:
                     if source_mac == solo.mac:
                         logger.debug("send CONN_ACK (yes)")
                         pair_sock.sendto(conn_ack_yes, source_adrs)
-                        solo.set_versions(pkt[4:36].strip('\r\n\t\0 '),
-                                          pkt[36:68].strip('\r\n\t\0 '))
+                        solo.set_versions(_decode_pkt_field(pkt[4:36]),
+                                          _decode_pkt_field(pkt[36:68]))
                         if not solo.confirmed:
                             send_pair_result(solo.name)
                             set_solo(source_adrs)
@@ -591,8 +617,8 @@ while True:
                         solo.confirmed = True
                         solo.locked = solo_locked
                         # strip whitespace and \0
-                        solo.set_versions(pkt[4:36].strip('\r\n\t\0 '),
-                                          pkt[36:68].strip('\r\n\t\0 '))
+                        solo.set_versions(_decode_pkt_field(pkt[4:36]),
+                                          _decode_pkt_field(pkt[36:68]))
                         set_state(STATE_CONNECTED)
                         set_solo(source_adrs)
                         if solo.locked:

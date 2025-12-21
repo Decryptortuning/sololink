@@ -3,6 +3,12 @@ import re
 import subprocess
 
 
+def _to_text(value):
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 # Expected output:
 #
 # $ iw dev wlan0 link
@@ -34,36 +40,37 @@ def link(ifName):
     try:
         iwOut = subprocess.check_output(['iw', 'dev', ifName, 'link'],
                                         stderr=subprocess.STDOUT)
+        iwOut = _to_text(iwOut)
     except:
         return info
 
-    m = re.search("Connected to (.*?)\s", iwOut)
+    m = re.search(r"Connected to (.*?)\s", iwOut)
     if m:
         info['mac'] = m.group(1)
 
-    m = re.search('SSID: (.*)\s', iwOut)
+    m = re.search(r"SSID: (.*)\s", iwOut)
     if m:
         info['ssid'] = m.group(1)
 
-    m = re.search('freq: ([0-9]+)\s', iwOut)
+    m = re.search(r"freq: ([0-9]+)\s", iwOut)
     if m:
         info['freq'] = int(m.group(1))
 
-    m = re.search('RX: ([0-9]+) bytes \(([0-9]+) packets\)\s', iwOut)
+    m = re.search(r"RX: ([0-9]+) bytes \(([0-9]+) packets\)\s", iwOut)
     if m:
         info['rxBytes'] = int(m.group(1))
         info['rxPackets'] = int(m.group(2))
 
-    m = re.search('TX: ([0-9]+) bytes \(([0-9]+) packets\)\s', iwOut)
+    m = re.search(r"TX: ([0-9]+) bytes \(([0-9]+) packets\)\s", iwOut)
     if m:
         info['txBytes'] = int(m.group(1))
         info['txPackets'] = int(m.group(2))
 
-    m = re.search('signal: (-[0-9]+) dBm\s', iwOut)
+    m = re.search(r"signal: (-[0-9]+) dBm\s", iwOut)
     if m:
         info['signal'] = int(m.group(1))
 
-    m = re.search('tx bitrate: ([0-9]+\.[0-9]+) MBit', iwOut)
+    m = re.search(r"tx bitrate: ([0-9]+\.[0-9]+) MBit", iwOut)
     if m:
         info['txBitrate'] = float(m.group(1))
 
@@ -92,9 +99,10 @@ def getChan(ifName):
     try:
         iwOut = subprocess.check_output(['iw', 'dev', ifName, 'info'],
                                         stderr=subprocess.STDOUT)
+        iwOut = _to_text(iwOut)
     except:
         return None
-    m = re.search('channel ([0-9]+)\s', iwOut)
+    m = re.search(r"channel ([0-9]+)\s", iwOut)
     if m:
         return int(m.group(1))
     return None
