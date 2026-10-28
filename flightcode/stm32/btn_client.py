@@ -52,6 +52,6 @@ while True:
     if format == 1:
         button_id = btn_msg.ButtonA
         shot_id = 0
-        btn_msg.sendArtooString(s, button_id, shot_id, desc + "\0")
+        btn_msg.sendArtooString(s, button_id, shot_id, btn_msg.ARTOO_BITMASK_ENABLED, desc + "\0")
     elif format == 2:
         btn_msg.sendShotString(s, desc + "\0")
