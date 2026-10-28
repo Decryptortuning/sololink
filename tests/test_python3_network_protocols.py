@@ -40,6 +40,12 @@ class NetworkTextTests(unittest.TestCase):
         with mock.patch.object(module.subprocess, "check_output", return_value=b"not configured\xff"):
             self.assertIsNone(module.ip_mask("wlan0"))
 
+    def test_ip_mac_lookup_parses_proc_arp_text(self):
+        module = load("pair/ip_util.py")
+        table = "IP address HW type Flags HW address Mask Device\n192.168.2.207 0x1 0x2 88:dc:96:3b:aa:30 * wlan0\n"
+        with mock.patch("builtins.open", return_value=io.StringIO(table)):
+            self.assertEqual(module.get_ip_mac("192.168.2.207"), "88:dc:96:3b:aa:30")
+
     def test_integer_dhcp_pid_becomes_argument_text(self):
         module = load("pair/udhcpc.py")
         with mock.patch.object(module.subprocess, "check_output", return_value=b"") as command:

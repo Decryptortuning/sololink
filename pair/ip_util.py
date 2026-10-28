@@ -22,9 +22,8 @@ def get_ip_mac(ip):
     except:
         return None
     for line in f:
-        m = re.match("([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*?(\
-[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:\
-[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F])", line)
+        m = re.match(r"([0-9]+(?:\.[0-9]+){3}).*?"
+                     r"((?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})", line)
         if m:
             if m.group(1) == ip:
                 return m.group(2)
