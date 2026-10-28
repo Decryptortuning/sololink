@@ -10,7 +10,7 @@ def bytearray_to_wordarray(data):
     '''Converts an 8-bit byte array into a 16-bit word array'''
     wordarray = list()
 
-    for i in range(len(data) / 2):
+    for i in range(len(data) // 2):
         # Calculate 16 bit word from two bytes
         msb = data[(i * 2) + 0]
         lsb = data[(i * 2) + 1]

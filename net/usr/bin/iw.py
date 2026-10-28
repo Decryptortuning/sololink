@@ -52,7 +52,7 @@ def link(ifName):
     if m:
         info['ssid'] = m.group(1)
 
-    m = re.search(r"freq: ([0-9]+)\s", iwOut)
+    m = re.search(r"freq: ([0-9]+)(?:\.0+)?\s", iwOut)
     if m:
         info['freq'] = int(m.group(1))
 

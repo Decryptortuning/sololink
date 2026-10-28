@@ -43,7 +43,7 @@ def unpack(s):
 # Buffer for accumulated data. It has been observed that we can get multiple
 # events in the same socket read. It is possible that we could get a message
 # split across two socket reads (although that has not been observed).
-msg_buf = ""
+msg_buf = b""
 
 # Debug flags
 msg_buf_short = 0   # if nonzero, have seen msg_buf with this many bytes
@@ -71,7 +71,7 @@ def recv(s):
             if data is None:
                 # this case has not been observed to happen
                 continue
-            elif data == "":
+            elif data == b"":
                 # this happens if the other end closes
                 return None
             else:

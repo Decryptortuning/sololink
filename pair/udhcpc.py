@@ -73,7 +73,7 @@ def pid(ifname):
 
 def get_lease(pid):
     try:
-        subprocess.check_output(["kill", "-USR1", pid])
+        subprocess.check_output(["kill", "-USR1", str(pid)])
         return True
     except:
         return False

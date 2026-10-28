@@ -76,7 +76,7 @@ def pair_button():
     if not button_error and button_file is None:
         # open on first call
         try:
-            button_file = open(button_filename)
+            button_file = open(button_filename, "rb", buffering=0)
         except:
             button_error = True
             logger.error("can't open %s for reading", button_filename)
@@ -322,8 +322,8 @@ def go_ready():
 def set_controller_versions(pkt):
     global controller_sololink_version
     global controller_firmware_version
-    sololink = pkt[4:36].strip('\r\n\t\0 ')
-    firmware = pkt[36:68].strip('\r\n\t\0 ')
+    sololink = pkt[4:36].strip(b'\r\n\t\0 ').decode("utf-8", errors="replace")
+    firmware = pkt[36:68].strip(b'\r\n\t\0 ').decode("utf-8", errors="replace")
     if controller_sololink_version == sololink and \
        controller_firmware_version == firmware:
         return;
@@ -372,7 +372,8 @@ def run_connected():
 
         conn_req = struct.pack("<BBBB32s32s",
                                pair.CMD_CONN_REQ, pair.SYS_SOLO, 0, locked,
-                               solo_sololink_version, solo_firmware_version)
+                               solo_sololink_version.encode("utf-8"),
+                               solo_firmware_version.encode("utf-8"))
 
         try:
             pair_sock.sendto(conn_req, controller_adrs)
@@ -425,9 +426,9 @@ def run_connected():
 
         # got a reply
         if len(pkt) == pair.CONN_MSG_LEN and \
-           ord(pkt[0]) == pair.CMD_CONN_ACK and \
-           ord(pkt[1]) == pair.SYS_CONTROLLER:
-            if ord(pkt[2]) == pair.YES:
+           pkt[0] == pair.CMD_CONN_ACK and \
+           pkt[1] == pair.SYS_CONTROLLER:
+            if pkt[2] == pair.YES:
                 set_controller_versions(pkt)
                 if not confirmed:
                     confirmed = True
@@ -452,7 +453,7 @@ def run_connected():
                 # Apps look better if there is telemetry flowing and shotmgr
                 # is running
                 go_ready()
-            elif ord(pkt[2]) == pair.PEND:
+            elif pkt[2] == pair.PEND:
                 if not pending:
                     logger.info("connection pending")
                 pending = True
@@ -472,7 +473,7 @@ def run_connected():
         else:
             # mystery packet!
             logger.error("mystery response received: %s",
-                         str([ord(c) for c in pkt]))
+                         str([c for c in pkt]))
         time.sleep(connect_request_interval)
 
 

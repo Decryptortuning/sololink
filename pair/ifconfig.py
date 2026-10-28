@@ -19,16 +19,16 @@ def ip_mask(ifname):
     """
 
     try:
-        out = subprocess.check_output(["ifconfig", ifname])
+        out = subprocess.check_output(["ifconfig", ifname]).decode("utf-8", errors="replace")
     except:
         return None
 
-    m = re.search("inet addr:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", out)
+    m = re.search(r"inet addr:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", out)
     if not m:
         return None
     ip = m.group(1)
 
-    m = re.search("Mask:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", out)
+    m = re.search(r"Mask:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", out)
     if not m:
         return None
     mask = m.group(1)
