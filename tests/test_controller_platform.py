@@ -4,6 +4,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
@@ -62,7 +63,10 @@ class ControllerPlatformTests(unittest.TestCase):
             p=Path(d);(p/'bin').mkdir();cfg=p/'profile';cfg.write_text('ApEnable=False\n')
             sleep=p/'bin/sleep';sleep.write_text('#!/bin/sh\nprintf "ApEnable=True\\n" > "$SOLOLINK_CONF"\n');sleep.chmod(0o755)
             result=p/'ran'
-            env=dict(os.environ, PATH=str(p/'bin')+':'+os.environ['PATH'], SOLOLINK_CONF=str(cfg))
+            sock=socket.socket(socket.AF_UNIX)
+            self.addCleanup(sock.close)
+            sock.bind(str(p/'hostapd'))
+            env=dict(os.environ, PATH=str(p/'bin')+':'+os.environ['PATH'], SOLOLINK_CONF=str(cfg), HOSTAPD_CTRL=str(p/'hostapd'))
             subprocess.run(['sh',str(ROOT/'net/usr/bin/sololink-ap-service'),'touch',str(result)],env=env,check=True,timeout=2)
             self.assertTrue(result.exists())
 
