@@ -44,6 +44,18 @@ class LoaderBoundaryTests(unittest.TestCase):
                 updater.validate_stick_cal(value)
         self.assertEqual(updater.validate_stick_cal(CAL), CAL)
 
+    def test_factory_linear_rate_trim_preserved_and_angular_rules_retained(self):
+        factory = [733,2299,3701,806,2261,3699,778,2304,3719,754,2127,3511,896,2024,3257,1191,0,2751]
+        self.assertEqual(updater.validate_stick_cal(factory), factory)
+        unused = factory.copy(); unused[16] = 65535
+        self.assertEqual(updater.validate_stick_cal(unused), unused)
+        for axis in range(5):
+            bad = factory.copy(); bad[axis*3+1] = 0
+            with self.assertRaises(updater.UpdateError): updater.validate_stick_cal(bad)
+        for low, high in [(2000,1000),(1000,1000),(0,4096),(65535,65535)]:
+            bad = factory.copy(); bad[15],bad[17] = low,high
+            with self.assertRaises(updater.UpdateError): updater.validate_stick_cal(bad)
+
     def test_calibration_write_uses_wire_bytes_and_closes_uart(self):
         port = Mock()
         slip = Mock()

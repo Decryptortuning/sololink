@@ -147,15 +147,20 @@ def getArtooVersion():
     return version
 
 def validate_stick_cal(values):
-    """Accept six ordered uint16 min/trim/max triples, never erased flash."""
+    """Validate five angular axes and the endpoint-only linear rate dial."""
     if not isinstance(values, (list, tuple)) or len(values) != 18:
         raise UpdateError("Missing or malformed stick calibration")
-    if any(type(value) is not int or not 0 <= value < 0xffff for value in values):
+    if any(type(value) is not int or not 0 <= value <= 0xffff for value in values):
         raise UpdateError("Invalid stick calibration values")
     for index in range(0, 18, 3):
         low, trim, high = values[index:index + 3]
-        if not low <= trim <= high or low >= high:
-            raise UpdateError("Invalid stick calibration range")
+        if not 0 <= low < high < 4096:
+            raise UpdateError("Invalid stick calibration endpoints")
+        # Raw axis 5 is the linear camera-rate dial; its trim is unused.
+        if index != 15:
+            dead_zone = 250 if index == 12 else 1
+            if not low + dead_zone < trim < high - dead_zone:
+                raise UpdateError("Invalid angular stick calibration range")
     return list(values)
 
 
