@@ -1,0 +1,19 @@
+#!/bin/sh
+# Managed periodic checkpoints; SIGTERM requests a final atomic checkpoint.
+PIDFILE=/run/clock_sync.pid
+case "$1" in
+ start) start-stop-daemon -S -b -m -p "$PIDFILE" -a /usr/bin/clock_sync ;;
+ stop)
+    if [ -s "$PIDFILE" ]; then
+        start-stop-daemon -K -p "$PIDFILE" || true
+        count=0
+        while kill -0 "$(cat "$PIDFILE")" 2>/dev/null && [ "$count" -lt 5 ]; do
+            sleep 1; count=$((count + 1))
+        done
+        rm -f "$PIDFILE"
+    fi
+    /usr/bin/clock_sync --once
+    ;;
+ restart) "$0" stop; "$0" start ;;
+ *) echo "Usage: clock_sync {start|stop|restart}" >&2; exit 1 ;;
+esac

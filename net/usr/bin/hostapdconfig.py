@@ -52,12 +52,13 @@ if opts.channel is not None:
         ifName = opts.channel
         freq = iw.getFreq(ifName)
         if freq is None:
-            chanInt = 0 # same as acs_survey
-            logger.info('can\'t get %s frequency; defaulting to channel %d', ifName, chanInt)
-        else:
-            # Use wlan0's channel
-            chanInt = iw.freqToChan(freq)
-            logger.info('%s is at %d MHz (channel %d)', ifName, freq, chanInt)
+            logger.error('station %s has no associated channel', ifName)
+            raise SystemExit(1)
+        chanInt = iw.freqToChan(freq)
+        if chanInt is None:
+            logger.error('unsupported station frequency %s MHz', freq)
+            raise SystemExit(1)
+        logger.info('%s is at %d MHz (channel %d)', ifName, freq, chanInt)
 
     oldChan = configfile.paramGet(opts.fileName, 'channel')
     logger.info('changing channel in %s from %s to %d', opts.fileName, str(oldChan), chanInt)

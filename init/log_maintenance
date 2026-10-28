@@ -1,0 +1,6 @@
+#!/bin/sh
+# Syslog files use busybox's own per-file rotation. Bound direct appenders too.
+while :; do
+    /usr/sbin/logrotate -s /run/logrotate-streams.state /etc/logrotate-streams.conf || logger -t log_maintenance "stream log rotation failed"
+    sleep 60
+done

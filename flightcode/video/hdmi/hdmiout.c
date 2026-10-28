@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#include <glob.h>
 #include <linux/videodev2.h>
 #include <errno.h>
 #include <string.h>
@@ -103,37 +104,37 @@ int restart_pipeline(char *sprop)
  */
 int hdmi_connected(void)
 {
-    char buf[64];
-    memset(buf, 0, 64);
-
-    // Read the cable_state from the sysfs
-    int fd =
-        open("/sys/devices/soc0/soc.1/20e0000.hdmi_video/cable_state", O_RDONLY | O_NONBLOCK, 0);
-    if (fd < 0) {
-        syslog(LOG_ERR, "Unable to open cable state file");
-        // By default assume its connected
-        goto return_connected;
+    static int warned = 0;
+    const char *patterns[] = {
+        "/sys/class/drm/card*-HDMI-A-*/status",
+        "/sys/bus/platform/devices/*.hdmi_video/cable_state",
+        "/sys/devices/platform/soc/*.hdmi_video/cable_state",
+        "/sys/devices/soc0/soc.1/*.hdmi_video/cable_state"
+    };
+    for (unsigned p = 0; p < sizeof(patterns) / sizeof(patterns[0]); ++p) {
+        glob_t paths = {0};
+        if (glob(patterns[p], 0, NULL, &paths) == 0) {
+            for (size_t i = 0; i < paths.gl_pathc; ++i) {
+                char buf[64] = {0};
+                int fd = open(paths.gl_pathv[i], O_RDONLY | O_NONBLOCK);
+                if (fd < 0) continue;
+                ssize_t len = read(fd, buf, sizeof(buf) - 1);
+                close(fd);
+                if (len <= 0) continue;
+                buf[strcspn(buf, "\r\n")] = 0;
+                if (!strcmp(buf, "connected") || !strcmp(buf, "plugin")) {
+                    globfree(&paths); warned = 0; return 1;
+                }
+                if (!strcmp(buf, "disconnected") || !strcmp(buf, "plugout")) {
+                    globfree(&paths); warned = 0; return 0;
+                }
+            }
+        }
+        globfree(&paths);
     }
-
-    int len = 0;
-    len = read(fd, buf, 64);
-    if (len <= 0) {
-        syslog(LOG_ERR, "Unable to read cable state file");
-        close(fd);
-        goto return_connected;
-    }
-
-    // Strip the tailing return
-    buf[len - 1] = 0;
-
-    if (!strcmp(buf, "plugout")) {
-        close(fd);
-        return 0;
-    } else
-        close(fd);
-
-return_connected:
-    return 1;
+    if (!warned) syslog(LOG_WARNING, "HDMI connection state unavailable; leaving pipeline stopped");
+    warned = 1;
+    return 0;
 }
 
 /* For handling ctrl-c

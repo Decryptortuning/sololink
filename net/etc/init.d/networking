@@ -67,6 +67,9 @@ start)
 	# Since we might modprobe -r ath9k in a networking shutdown,
 	# be sure to re-modprobe it at a startup
 	modprobe ath9k
+    if [ "$(cat /etc/hostname)" = 3dr_controller ]; then
+        /usr/bin/sololink-lan-firewall start
+    fi
 	ifup -a
 	if [ -e /sys/class/net/wlan0 ]; then
 		# if the config file exists and StationEnable is True, bring up wlan0
@@ -92,9 +95,12 @@ stop)
 	check_network_swap
 
 	echo -n "Deconfiguring network interfaces... "
-	ifdown wlan0 &> /dev/null
-	ifdown wlan0-ap &> /dev/null
+	ifdown wlan0 >/dev/null 2>&1
+	ifdown wlan0-ap >/dev/null 2>&1
 	ifdown -a
+    if [ "$(cat /etc/hostname)" = 3dr_controller ]; then
+        /usr/bin/sololink-lan-firewall stop
+    fi
 	echo "done."
 	;;
 

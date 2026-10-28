@@ -1,0 +1,8 @@
+#!/bin/sh
+# Keep init's child alive quietly while this profile intentionally disables AP.
+# Re-evaluate the profile so switching back to flight mode can enable pairing.
+CONF=${SOLOLINK_CONF:-/etc/sololink.conf}
+while ! grep -iq '^[[:space:]]*ApEnable[[:space:]]*=[[:space:]]*True[[:space:]]*$' "$CONF" 2>/dev/null; do
+    sleep 5
+done
+exec "$@"

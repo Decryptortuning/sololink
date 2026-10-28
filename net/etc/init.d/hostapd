@@ -52,7 +52,20 @@ case "$1" in
 		/usr/bin/hostapdconfig.py --country `getCountryCode`
 	    fi
 	    # set channel to that of wlan0 if it is associated
-	    /usr/bin/hostapdconfig.py --channel wlan0
+	    if isEnabled $SOLO_CONF StationEnable; then
+                # Concurrent interfaces share one PHY: require a station channel.
+                attempts=0
+                until /usr/bin/hostapdconfig.py --channel wlan0; do
+                    attempts=$((attempts + 1))
+                    if [ "$attempts" -ge 15 ]; then
+                        logger -t hostapd "station channel unavailable; refusing automatic-channel AP startup"
+                        exit 1
+                    fi
+                    sleep 1
+                done
+            else
+                /usr/bin/hostapdconfig.py --channel 0
+            fi
 	    md5sum ${HOSTAPD_CONF} > ${HOSTAPD_CONF}.md5
 	    sync
 	    rm ${HOSTAPD_BACK} ${HOSTAPD_BACK}.md5

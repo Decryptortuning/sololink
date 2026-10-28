@@ -1,27 +1,84 @@
-#!/bin/sh
+#!/usr/bin/env python3
+"""Persist a UTC time floor without moving it backwards or rewriting every 10s."""
+import argparse
+import datetime
+import fcntl
+import os
+from pathlib import Path
+import signal
+import syslog
+import tempfile
+import threading
+import time
 
-# Normally, /etc/timestamp is update in a shutdown script.
-#
-# However, on Solo, we do not shut down; power just disappears.
-#
-# The goal of this script is to make time move forward, more-or-less, between
-# runs, i.e. all logs from one run should have timestamps greater than those
-# in logs from a previous run. /etc/timestamp only has minute-resolution, so
-# there can be overlap of up to about a minute between the very end of one
-# run and the very beginning of the next run.
-#
-# This is started by init and runs as long as the system is up.
-#
-# This only runs on Solo; Artoo is expected to get a power-button shutdown.
-#
-# Implementation note: Since power just disappears, we try to update
-# /etc/timestamp in a way such that it is always has valid contents. If we
-# just > into it, there may be a short time period when it is empty or does
-# not exist. The goal of writing a temp file, then doing a move, is to reduce
-# or eliminate the time window when it does not exist.
 
-while true; do
-  date -u +%4Y%2m%2d%2H%2M > /etc/timestamp.new
-  mv /etc/timestamp.new /etc/timestamp
-  sleep 10
-done
+def parse_stamp(value):
+    value = value.strip()
+    if len(value) == 12 and value.isascii() and value.isdigit():
+        value += "00"  # legacy minute-resolution files
+    if len(value) != 14 or not value.isascii() or not value.isdigit():
+        raise ValueError("timestamp must contain 14 UTC digits")
+    datetime.datetime.strptime(value, "%Y%m%d%H%M%S")
+    return value
+
+
+def checkpoint(path, now=None):
+    path = Path(path)
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(time.time() if now is None else now))
+    parse_stamp(stamp)
+    try:
+        previous = parse_stamp(path.read_text())
+    except (OSError, ValueError):
+        previous = None
+    if previous is not None and stamp <= previous:
+        return False
+    fd, name = tempfile.mkstemp(prefix=".timestamp-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            os.fchmod(stream.fileno(), 0o644)
+            stream.write(stamp + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--interval", type=int, default=60)
+    args = parser.parse_args()
+    if args.interval < 1:
+        parser.error("interval must be positive")
+    if args.once:
+        checkpoint("/etc/timestamp")
+        return
+    # Additional protection against duplicate daemon starts.
+    with open("/run/clock_sync.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        stop = threading.Event()
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
+        signal.signal(signal.SIGINT, lambda *_: stop.set())
+        while True:
+            try:
+                checkpoint("/etc/timestamp")
+            except (OSError, ValueError) as exc:
+                syslog.syslog(syslog.LOG_ERR, "clock_sync checkpoint failed: " + str(exc))
+            if stop.is_set():
+                break
+            stop.wait(args.interval)
+
+
+if __name__ == "__main__":
+    main()

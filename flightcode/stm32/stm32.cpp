@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <syslog.h>
 #include <termios.h>
 #include <time.h>
@@ -138,7 +139,9 @@ static void lock_thread_mem(uint32_t memsize)
 {
     uint8_t stackmem[memsize];
 
-    mlockall(MCL_CURRENT | MCL_FUTURE);
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+        syslog(LOG_CRIT, "STM32 memory locking failed: %s; real-time residency is not guaranteed", strerror(errno));
+    }
 
     memset(stackmem, 0, sizeof(stackmem));
 }
