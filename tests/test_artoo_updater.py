@@ -84,6 +84,59 @@ class LoaderBoundaryTests(unittest.TestCase):
             self.assertEqual(updater.getArtooVersion(), '4.0.0')
         port.close.assert_called_once()
 
+    def test_startup_noise_many_unrelated_packets_and_nul_version(self):
+        port = Mock()
+        frames = [[], list('\x03short')] + [list('\x01input')] * 40
+        frames += [list('\x03' + '\x00' * 14 + 'bad\x01version'),
+                   list('\x03' + '\x00' * 14 + 'v5.0.0-dev+bench\0')]
+        device = Mock(); device.read.side_effect = frames
+        with patch.object(updater.serial, 'Serial', return_value=port), \
+                patch.object(updater.slip, 'SlipDevice', return_value=device):
+            self.assertEqual(updater.getArtooVersion(), '5.0.0-dev+bench')
+        port.reset_input_buffer.assert_called_once()
+        port.close.assert_called_once()
+        self.assertGreater(device.read.call_count, 5)
+
+    def test_identification_deadline_and_no_programming(self):
+        port = Mock(); device = Mock(); device.read.return_value = []
+        ticks = iter(range(100))
+        with patch.object(updater.serial, 'Serial', return_value=port), \
+                patch.object(updater.slip, 'SlipDevice', return_value=device), \
+                patch.object(updater.time, 'monotonic', side_effect=lambda: next(ticks)), \
+                patch.object(updater, 'call_stm32loader') as loader:
+            self.assertEqual(updater.getArtooVersion(timeout=4), 'unknown')
+        loader.assert_not_called(); port.close.assert_called_once()
+
+    def test_real_slip_oversize_then_reply_recovers(self):
+        class Port:
+            def __init__(self):
+                self.data = iter(b'\xc0' + b'x'*5000 + b'\xc0\x03valid\xc0')
+            def read(self):
+                return bytes([next(self.data)])
+        device = updater.slip.SlipDevice(Port())
+        self.assertEqual(device.read(), [])
+        self.assertFalse(device.insync)
+        self.assertEqual(''.join(device.read()), '\x03valid')
+
+    def test_real_slip_continuous_unframed_traffic_is_time_bounded(self):
+        class Port:
+            def read(self): return b'x'
+        device = updater.slip.SlipDevice(Port())
+        clock = iter(range(100))
+        with patch.object(updater.slip.time, 'monotonic', side_effect=lambda: next(clock)):
+            self.assertEqual(device.read(deadline=3), [])
+        self.assertFalse(device.insync)
+
+    def test_programming_requires_bound_power_hold_driver(self):
+        with patch.object(updater.os.path, 'islink', return_value=False):
+            with self.assertRaises(updater.UpdateError): updater.require_controller_power_hold()
+        with patch.object(updater.os.path, 'islink', return_value=True), \
+                patch.object(updater.os.path, 'realpath', return_value='/sys/bus/platform/drivers/opensolo-controller-power'):
+            updater.require_controller_power_hold()
+        with patch.object(updater.os.path, 'islink', return_value=True), \
+                patch.object(updater.os.path, 'realpath', return_value='/wrong-driver'):
+            with self.assertRaises(updater.UpdateError): updater.require_controller_power_hold()
+
 
 class ProgrammingTests(unittest.TestCase):
     def setUp(self):
@@ -95,6 +148,15 @@ class ProgrammingTests(unittest.TestCase):
         self.settings = patch.object(updater, 'UPDATE_DIR', str(self.root / 'updates'))
         self.settings.start()
         self.addCleanup(self.settings.stop)
+        hold = patch.object(updater, 'require_controller_power_hold')
+        hold.start(); self.addCleanup(hold.stop)
+
+    def test_missing_power_driver_blocks_before_calibration_or_flash(self):
+        with patch.object(updater, 'require_controller_power_hold', side_effect=updater.UpdateError('unbound')), \
+                patch.object(updater, 'read_stick_cal') as calibration, \
+                patch.object(updater, 'call_stm32loader') as loader:
+            with self.assertRaises(updater.UpdateError):updater.updateStm32(str(self.firmware))
+        calibration.assert_not_called();loader.assert_not_called()
 
     def test_success_preserves_and_durably_records_calibration(self):
         with patch.object(updater, 'read_stick_cal', return_value=CAL), \
@@ -120,9 +182,9 @@ class ProgrammingTests(unittest.TestCase):
     def test_exhaustion_never_escalates_to_mass_erase(self):
         with patch.object(updater, 'read_stick_cal', return_value=CAL), \
                 patch.object(updater, 'call_stm32loader', return_value=False) as loader, \
-                self.assertRaisesRegex(updater.UpdateError, 'no unprotect attempted'):
+                self.assertRaisesRegex(updater.UpdateError, 'no automatic retry or unprotect attempted'):
             updater.updateStm32(str(self.firmware))
-        self.assertEqual(loader.call_count, 4)
+        self.assertEqual(loader.call_count, 1)
         self.assertTrue(all(not call.kwargs for call in loader.call_args_list))
 
     def test_calibration_restore_requires_readback(self):

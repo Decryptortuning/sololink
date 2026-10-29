@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import time
+
 class SlipDevice:
 
     END     = chr(0o300) # indicates end of packet
@@ -11,7 +13,7 @@ class SlipDevice:
         self.ser = serial_dev
         self.insync = False
 
-    def sync(self):
+    def sync(self, deadline=None):
         attempts = 0
         bytes_read = 0
         max_bytes = 4096
@@ -22,6 +24,9 @@ class SlipDevice:
                 return chr(val)
             return val
         while 1:
+            if deadline is not None and time.monotonic() >= deadline:
+                self.insync = False
+                return False
             raw = self.ser.read()
             if not raw:
                 attempts += 1
@@ -39,7 +44,7 @@ class SlipDevice:
                 self.insync = True
                 return True
 
-    def read(self):
+    def read(self, deadline=None):
         """
         read a SLIP packet from artoo.
         """
@@ -53,10 +58,13 @@ class SlipDevice:
             return val
 
         if not self.insync:
-            if(self.sync() == False):
+            if(self.sync(deadline=deadline) == False):
                 return pkt;
 
         while True:
+            if deadline is not None and time.monotonic() >= deadline:
+                self.insync = False
+                return []
             raw = self.ser.read()
             if not raw:
                 # Timeout/no data. Treat as "no packet" so callers can retry.

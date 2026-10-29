@@ -109,42 +109,37 @@ def _update_enabled():
     return os.getenv("ARTOO_ENABLE_UPDATE") == "1" or os.path.exists("/log/updates/ENABLE_UPDATE")
 
 
-# return version as string ("unknown" if can't get version)
-def getArtooVersion():
-    #Check the version of the stm32 firmware over serial
-    #The STM32 might be emitting packets already, so we try a few times to get the
-    #version string. This has been observed to get the version with one retry on
-    #several occasions.
+def getArtooVersion(timeout=8.0):
+    """Read a settled SysInfo reply within one bounded receive window.
+
+    Startup may contain partial/oversized SLIP frames and many unrelated input
+    reports. Retry identification, never programming, while the MCU settles.
+    The boot updater owns the UART here; the normal bridge is not running yet.
+    """
     logger.info("requesting stm32 version")
-    version = "unknown"
-    ser = serial.Serial("/dev/ttymxc1", 115200, timeout=1)
-    slipdev = slip.SlipDevice(ser)
+    ser = serial.Serial("/dev/ttymxc1", ARTOO_BAUD, timeout=0.1,
+                        write_timeout=1, exclusive=True)
     try:
-        for i in range(5):
-            slipdev.write("".join([ARTOO_SYSINFO_ID]))
-            pkt = slipdev.read()
-            if not pkt:
-                logger.info("no data received from stm32, retrying")
+        ser.reset_input_buffer()
+        slipdev = slip.SlipDevice(ser)
+        deadline = time.monotonic() + timeout
+        next_request = 0.0
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_request:
+                slipdev.write(ARTOO_SYSINFO_ID)
+                next_request = now + 0.5
+            pkt = "".join(slipdev.read(deadline=deadline))
+            if len(pkt) <= 15 or pkt[0] != ARTOO_SYSINFO_ID:
                 continue
-            pkt = "".join(pkt)
-            if pkt[0] == ARTOO_SYSINFO_ID and len(pkt) > 15:
-                # SysInfo packet is:          artoo/src/hostprotocol.cpp
-                # start size
-                #   0     1  ARTOO_SYSINFO_ID artoo/src/hostprotocol.h
-                #   1    12  UniqueId         artoo/src/stm32/sys.h
-                #  13     2  hwversion        artoo/src/hostprotocol.cpp
-                #  15   var  Version          artoo/src/version.h
-                # Version may start with an initial 'v', e.g. v0.6.10,
-                # but we want it starting with the numeric part.
-                if pkt[15] != 'v':
-                    version = pkt[15:]
-                else:
-                    version = pkt[16:]
-                break
-            logger.info("got %s/%d, retrying", str(hex(ord(pkt[0]))), len(pkt))
+            # id + UID[12] + hardware[2] + printable ASCII version.
+            version = pkt[15:].rstrip("\0").removeprefix("v")
+            if version and len(version) <= 64 and all(32 <= ord(c) <= 126 for c in version):
+                return version
+        logger.warning("STM32 identification timed out after %.1f seconds", timeout)
+        return "unknown"
     finally:
         ser.close()
-    return version
 
 def validate_stick_cal(values):
     """Validate five angular axes and the endpoint-only linear rate dial."""
@@ -183,20 +178,25 @@ def backup_stick_cal(filename, values):
     return path
 
 
+def require_controller_power_hold():
+    """The combined BSP must own both holds before any MCU programming."""
+    driver = "/sys/bus/platform/devices/controller-power/driver"
+    if not os.path.islink(driver) or os.path.basename(os.path.realpath(driver)) != "opensolo-controller-power":
+        raise UpdateError("Controller power-hold driver is not bound; refusing STM32 programming")
+
+
 def updateStm32(filename):
     # Normal updates erase pages 0..126 and preserve the parameter page. Never
     # infer readout protection from a generic failure and escalate to mass erase.
     # Destructive recovery requires a separate, explicitly reviewed procedure.
     if not 0 < os.path.getsize(filename) <= 0x3f800:
         raise UpdateError("Firmware is empty or overlaps the reserved parameter page")
+    require_controller_power_hold()
     stick_cal = validate_stick_cal(read_stick_cal())
     backup_stick_cal(filename, stick_cal)
-    for attempt in range(4):
-        logger.info("updating without readout protection disable (attempt %d)", attempt + 1)
-        if call_stm32loader(filename):
-            break
-    else:
-        raise UpdateError("STM32 loader failed after four attempts; no unprotect attempted")
+    logger.info("updating once without readout protection disable")
+    if not call_stm32loader(filename):
+        raise UpdateError("STM32 loader failed; no automatic retry or unprotect attempted")
 
     for attempt in range(3):
         try:
