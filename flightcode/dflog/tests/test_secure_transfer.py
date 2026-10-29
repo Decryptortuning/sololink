@@ -1,7 +1,9 @@
-"""Offline contract tests. Requires rsync, ssh-keygen and RRSYNC_SOURCE.
+"""Offline contract tests. Requires ssh-keygen, RRSYNC_SOURCE and matching RSYNC_BINARY.
 
 Run only after the combined source review gate. RRSYNC_SOURCE must be the
 support/rrsync from the exact Yocto rsync source, not an invented receiver.
+RSYNC_BINARY is the native3.5.1 binary: newer rrsync options require that version.
+Only its executable-path constant is relocated in a disposable script copy.
 No ssh connections, target devices or hardware are used.
 """
 import importlib.machinery
@@ -40,12 +42,23 @@ class TransferTests(unittest.TestCase):
         self.dest = self.root / "receiver"
         self.src.mkdir()
         self.dest.mkdir()
-        self.rrsync = Path(os.environ["RRSYNC_SOURCE"]).resolve()
-        self.assertTrue(self.rrsync.is_file(), "use exact Yocto support/rrsync")
+        upstream = Path(os.environ["RRSYNC_SOURCE"]).resolve()
+        binary = Path(os.environ["RSYNC_BINARY"]).resolve()
+        self.assertTrue(upstream.is_file(), "use exact Yocto support/rrsync")
+        self.assertTrue(binary.is_file(), "build the matching rsync-native first")
+        version = subprocess.check_output([str(binary), "--version"], text=True)
+        self.assertIn("version 3.5.1", version.splitlines()[0])
+        # Preserve the upstream source; relocate just its installed executable
+        # path for the native host fixture. All receiver logic/options are real.
+        text = upstream.read_text()
+        self.assertEqual(text.count("RSYNC = '/usr/bin/rsync'"), 1)
+        self.rrsync = self.root / "rrsync"
+        self.rrsync.write_text(text.replace("RSYNC = '/usr/bin/rsync'", "RSYNC = " + repr(str(binary)), 1))
         # Local transport shim receives the real producer's rsync SSH argv.
         # It passes the generated remote command to the real upstream receiver.
         self.bin = self.root / "bin"
         self.bin.mkdir()
+        (self.bin / "rsync").symlink_to(binary)
         ssh = self.bin / "ssh"
         ssh.write_text('''#!/usr/bin/python3
 import os, shlex, subprocess, sys
