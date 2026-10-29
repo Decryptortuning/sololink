@@ -12,7 +12,14 @@ prog_name="sololink_config"
 # version.
 sololink_config_version="0.0.1"
 
-logger -p local1.info -- $0 $*
+# Arguments may include credentials; log only the operation name.
+logger -p local1.info -- "$0 ${1:-}"
+umask 077
+wifi_config() {
+  kind=hostapd
+  if [ "${is_solo:-}" ]; then kind=wpa_supplicant; fi
+  python3 "${OPENSOLO_WIFI_HELPER:-/usr/bin/opensolo_wifi.py}" --root "${ROOT:-/}" --kind "$kind" "$@"
+}
 
 if [ -h `which md5sum` ]; then
   # assume busybox
@@ -44,7 +51,7 @@ Options:
     --get-wifi-power
     --set-wifi-power POWER
     --reset-wifi-settings
-        controller: revert to default SSID (on next boot)
+        controller: remove Wi-Fi credential; offline reprovisioning required
         solo: forget SSID (unpair)
     --restart-video
         solo: Restart the video pipeline
@@ -148,18 +155,8 @@ count_files() {
 # set network in wpa_supplicant
 # set_wpa_supplicant_network (SSID) (PASSWORD)
 set_wpa_supplicant_network() {
-  backup_config ${ROOT}/etc/wpa_supplicant
-  cp ${ROOT}/mnt/rootfs.ro/etc/wpa_supplicant.orig ${ROOT}/etc/wpa_supplicant.conf
-  echo >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "network={" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	ssid=\"${1}\"" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	psk=\"${2}\"" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	proto=RSN" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	key_mgmt=WPA-PSK" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	pairwise=CCMP" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "	auth_alg=OPEN" >> ${ROOT}/etc/wpa_supplicant.conf
-  echo "}" >> ${ROOT}/etc/wpa_supplicant.conf
-  md5sum_config ${ROOT}/etc/wpa_supplicant
+  printf '%s' "${1}" | wifi_config set --key ssid || return 1
+  printf '%s' "${2}" | wifi_config set --key password
 }
 
 
@@ -178,61 +175,17 @@ wpa_supp_has_psk() {
 
 
 reset_wifi_settings() {
-  if [ ${is_solo} ]; then
-    backup_config ${ROOT}/etc/wpa_supplicant
-    cp ${ROOT}/mnt/rootfs.ro/etc/wpa_supplicant.orig ${ROOT}/etc/wpa_supplicant.conf
-    md5sum_config ${ROOT}/etc/wpa_supplicant
-  else
-    backup_config ${ROOT}/etc/hostapd
-    cp ${ROOT}/mnt/rootfs.ro/etc/hostapd.orig ${ROOT}/etc/hostapd.conf
-    md5sum_config ${ROOT}/etc/hostapd
-  fi
-  return 0
+  wifi_config reset
 }
 
 
 get_wifi_password() {
-  if [ ${is_solo} ]; then
-    # is there one?
-    if ! wpa_supp_has_psk; then
-      echo "wifi network not set"
-      return 1
-    fi
-    password=`grep psk= ${ROOT}/etc/wpa_supplicant.conf | head -n 1 | \
-              sed "s/.*psk=\"\(.\+\)\"/\1/g"`
-  else
-    # there is always one in hostapd
-    password=`grep ^wpa_passphrase= ${ROOT}/etc/hostapd.conf | head -n 1 | \
-              sed "s/^wpa_passphrase=\(.\+\)\$/\1/g"`
-  fi
-  echo "${password}"
-  return 0
+  wifi_config get --key password
 }
 
 
 set_wifi_password() {
-  # password must be 8..63 characters
-  pwlen=${#1}
-  if [ ${pwlen} -lt 8 -o ${pwlen} -gt 63 ]; then
-    echo "password must be 8..63 characters"
-    return 1
-  fi
-  if [ ${is_solo} ]; then
-    # is there one already?
-    if ! wpa_supp_has_psk; then
-      # make a default network and set password
-      set_wpa_supplicant_network "SoloLink_Default" "${1}"
-    else
-      backup_config ${ROOT}/etc/wpa_supplicant
-      sed -i "s/psk=\".\+\"/psk=\"${1}\"/g" ${ROOT}/etc/wpa_supplicant.conf
-      md5sum_config ${ROOT}/etc/wpa_supplicant
-    fi
-  else
-    backup_config ${ROOT}/etc/hostapd
-    sed -i "s/^wpa_passphrase=.\+\$/wpa_passphrase=${1}/g" ${ROOT}/etc/hostapd.conf
-    md5sum_config ${ROOT}/etc/hostapd
-  fi
-  get_wifi_password
+  printf '%s' "${1}" | wifi_config set --key password
 }
 
 
@@ -249,18 +202,7 @@ get_wifi_ssid_hostapd() {
 
 
 get_wifi_ssid() {
-  if [ ${is_solo} ]; then
-    # is there one?
-    if ! wpa_supp_has_ssid; then
-      echo "wifi network not set"
-      return 1
-    fi
-    ssid=`get_wifi_ssid_wpa_supplicant`
-  else
-    ssid=`get_wifi_ssid_hostapd`
-  fi
-  echo "${ssid}"
-  return 0
+  wifi_config get --key ssid
 }
 
 
@@ -277,37 +219,18 @@ validate_wifi_ssid() {
 
 
 set_wifi_ssid_wpa_supplicant() {
-  backup_config ${ROOT}/etc/wpa_supplicant
-  sed -i "s/ssid=\".\+\"/ssid=\"${1}\"/g" ${ROOT}/etc/wpa_supplicant.conf
-  md5sum_config ${ROOT}/etc/wpa_supplicant
-  return 0
+  printf '%s' "${1}" | wifi_config set --key ssid
 }
 
 
 set_wifi_ssid_hostapd() {
-  backup_config ${ROOT}/etc/hostapd
-  sed -i "s/^ssid=.\+\$/ssid=${1}/g" ${ROOT}/etc/hostapd.conf
-  md5sum_config ${ROOT}/etc/hostapd
-  return 0
+  printf '%s' "${1}" | wifi_config set --key ssid
 }
 
 
 set_wifi_ssid() {
-  if ! validate_wifi_ssid "${1}"; then
-    return 1
-  fi
-  if [ ${is_solo} ]; then
-    # is there one already?
-    if ! wpa_supp_has_ssid; then
-      # make a default network and set ssid
-      set_wpa_supplicant_network "${1}" "sololink"
-    else
-      set_wifi_ssid_wpa_supplicant "${1}"
-    fi
-  else
-    set_wifi_ssid_hostapd "${1}"
-  fi
-  get_wifi_ssid
+  validate_wifi_ssid "${1}" || return 1
+  printf '%s' "${1}" | wifi_config set --key ssid
 }
 
 get_wifi_channel() {
@@ -880,8 +803,7 @@ get_pairing() {
 set_pairing() {
   if [ ${is_solo} ]; then
     if [ -z "${1}" ]; then
-      cp ${ROOT}/mnt/rootfs.ro/etc/wpa_supplicant.orig ${ROOT}/etc/wpa_supplicant.conf
-      md5sum_config ${ROOT}/etc/wpa_supplicant
+      wifi_config reset || return 1
       echo "not paired"
       return 0
     else

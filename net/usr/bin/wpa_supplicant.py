@@ -32,7 +32,7 @@
 #             'key_mgmt': ['WPA-PSK'],
 #             'pairwise': ['CCMP'],
 #             'proto': ['RSN'],
-#             'psk': ['"3drobotics2014"'],
+#             'psk': ['<provisioned privately>'],
 #             'ssid': ['"SoloLink_Finley_Artoo"']
 #         },
 #         {
@@ -40,7 +40,7 @@
 #             'key_mgmt': ['WPA-PSK'],
 #             'pairwise': ['CCMP'],
 #             'proto': ['RSN'],
-#             'psk': ['"3drobotics2014"'],
+#             'psk': ['<provisioned privately>'],
 #             'ssid': ['"SoloLink_Finley_Artoo"']
 #         },
 #         {
@@ -48,7 +48,7 @@
 #             'key_mgmt': ['WPA-PSK'],
 #             'pairwise': ['CCMP'],
 #             'proto': ['RSN'],
-#             'psk': ['"3drobotics2014"'],
+#             'psk': ['<provisioned privately>'],
 #             'ssid': ['"SoloLink_Finley_Artoo"']
 #         }
 #     ],

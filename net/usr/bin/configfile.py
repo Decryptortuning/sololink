@@ -44,67 +44,12 @@ def paramGet(configFileName, paramName):
 
 
 def paramSet(configFileName, paramName, paramValue):
-    '''
-    Set parameter in config file
-    '''
-
-    configFileNameNew = configFileName + '.new'
-
-    # We generally make two passes through the file:
-    #
-    # Pass 1:
-    #     If we find the parameter getting set (uncommented), we delete that
-    #     line and replace it with a new line with the new setting. Copy the
-    #     rest of the file then return (do not do pass 2).
-    #
-    # Pass 2:
-    #     Otherwise, find the first line with a setting for the parameter
-    #     commented out. Insert a new line with the parameter setting, but
-    #     leave the commented out setting. Copy the rest of the file then
-    #     return. If the parameter is not found (commented out), append the
-    #     setting at the end of the file.
-
-    paramSet = False
-
-    # pass 1: process line-by-line
-    configFile = open(configFileName) # IOError
-    configFileNew = open(configFileNameNew, 'w') # IOError
-    for line in configFile:
-        if not paramSet:
-            # .match only works at beginning of line (we want that)
-            # optional tabs/spaces, 'param=', setting
-            m = re.match('[\t ]*' + paramName + '[\t ]*=[\t ]*(.*?)[\t ]*\n', line)
-            if m:
-                # found an uncommented setting for the parameter
-                # replace  with the new setting
-                line = paramName + '=' + str(paramValue) + '\n'
-                paramSet = True
-        configFileNew.write(line)
-    configFileNew.close()
-    configFile.close()
-
-    # pass 1 done: if we set the parameter, then we are done.
-    # If we did not set the parameter, do pass #2.
-    if not paramSet:
-        configFile = open(configFileName) # IOError
-        configFileNew = open(configFileNameNew, 'w') # IOError
-        for line in configFile:
-            if not paramSet:
-                # .match only works at beginning of line (we want that)
-                # '#', optional tabs/spaces, 'param=', setting
-                m = re.match('[\t ]*#[\t ]*' + paramName + '[\t ]*=[\t ]*(.*?)[\t ]*\n', line)
-                if m:
-                    # found a commented setting for the parameter
-                    # insert a line with the new setting
-                    configFileNew.write(paramName + '=' + str(paramValue) + '\n')
-                    paramSet = True
-            configFileNew.write(line)
-        # append setting to end of file if not yet set
-        if not paramSet:
-            configFileNew.write(paramName + '=' + str(paramValue) + '\n')
-            paramSet = True
-        configFileNew.close()
-        configFile.close()
-
-    # replace old file with updated one
-    os.rename(configFileNameNew, configFileName)
+    from pathlib import Path
+    import opensolo_wifi
+    path = Path(configFileName).absolute()
+    opensolo_wifi.safe_path(path.parent, path.name)
+    text = opensolo_wifi.replace_assignment(path.read_text(), paramName, str(paramValue))
+    if path.name == "hostapd.conf" and path.parent.name == "etc":
+        opensolo_wifi.save(path.parent.parent, "hostapd", text)
+    else:
+        opensolo_wifi.atomic(path, text)

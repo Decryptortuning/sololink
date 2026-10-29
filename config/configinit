@@ -5,7 +5,8 @@
 # Called at init time before any config files are used via an entry in
 # /etc/rcS.d.
 
-cd /etc
+cd "${CONFIGINIT_ROOT:-/}/etc" || exit 1
+umask 077
 
 verbose=false
 
@@ -23,7 +24,12 @@ dmsg() {
 }
 
 # Prefer target paths when the read-only rootfs is mounted.
-if [ -d /mnt/rootfs.ro ]; then
+if [ -n "${CONFIGINIT_ROOT:-}" ]; then
+  MD5SUM="md5sum -c --status"
+  ETC="${CONFIGINIT_ROOT}/etc"
+  ROFS="${CONFIGINIT_ROOT}/mnt/rootfs.ro"
+  kmsg() { echo "$@"; }
+elif [ -d /mnt/rootfs.ro ]; then
   MD5SUM="md5sum -cs"
   ETC="/etc"
   ROFS="/mnt/rootfs.ro"
@@ -51,7 +57,11 @@ fi
 kmsg -n "Checking SoloLink configuration... "
 dmsg ""
 
-config_names="hostapd wpa_supplicant sololink shotmanager"
+# Wi-Fi has a dedicated atomic lifecycle, with no shell patch/factory-secret fallback.
+for wifi_kind in hostapd wpa_supplicant; do
+  python3 "${OPENSOLO_WIFI_HELPER:-/usr/bin/opensolo_wifi.py}" --root "${CONFIGINIT_ROOT:-/}" --kind "$wifi_kind" initialize || exit 1
+done
+config_names="sololink shotmanager"
 
 # For each file "file" in ${config_names}:
 #
@@ -230,8 +240,8 @@ for config_name in ${config_names}; do
 
   # Skip any that are not in the read-only FS (e.g. shotmanager on controller).
   # If the ROFS mount is missing, fall back to /etc so we still initialize.
-  if [ ! -f "${rofs_orig}" ] && [ -f "/etc/${config_name}.orig" ]; then
-    rofs_orig="/etc/${config_name}.orig"
+  if [ ! -f "${rofs_orig}" ] && [ -f "${ETC}/${config_name}.orig" ]; then
+    rofs_orig="${ETC}/${config_name}.orig"
   fi
   if [ ! -f "${rofs_orig}" ]; then
     continue

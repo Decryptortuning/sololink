@@ -40,10 +40,7 @@ button_filename = "/dev/input/event0"
 solo_ip = "10.1.1.10"
 check_versions = True
 
-# It is not critical that the PIN be secret. The reason for using WPS PIN is
-# not the PIN's security (it is not), but that we can cause hostapd to ask us
-# for the PIN, at which time get confirmation from the user.
-secret_pin = 74015887
+# Wireless enrollment is offline; no fixed WPS PIN is supported.
 
 button_error = False
 button_file = None
@@ -135,30 +132,16 @@ def pair_button():
 #   First network name if there is at least one
 #   None if there are no networks
 def wpa_supplicant_network_get():
-    """get network from wpa_supplicant.conf
-
-    Retrieve and return ssid from network={} section in wpa_supplicant.conf.
-    The first network found is returned.
-    """
-
+    import opensolo_wifi
     try:
-        d = wpa_supplicant.read(wpa_supplicant_conf)
-    except:
-        logger.error("can't open %s for reading", wpa_supplicant_conf)
+        text = open(wpa_supplicant_conf).read()
+        name = opensolo_wifi.value(text, "wpa_supplicant", "ssid")
+        password = opensolo_wifi.value(text, "wpa_supplicant", "password")
+        opensolo_wifi.check_value("ssid", name)
+        opensolo_wifi.check_value("password", password)
+        return name
+    except (OSError, ValueError):
         return None
-
-    if "network" in d:
-        for net in d["network"]:
-            # net is a dictionary of net parameters
-            if "ssid" in net:
-                name = net["ssid"][0]
-                # strip leading and trailing quotes
-                if name[0] == "\"" and name[-1] == "\"":
-                    name = name[1:-1]
-                return name
-
-    # no network in wpa_supplicant.conf
-    return None
 
 
 # Returns:
@@ -172,47 +155,9 @@ def is_paired():
 
 # Returns True or False
 def pin_pair():
-    logger.info("pin pair...")
-    wpa.pin_pair(secret_pin)
-    state = None
-    last_state = None
-    start_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
-    while True:
-        time.sleep(0.1)
-        stat = wpa.get_status()
-        now_us = clock.gettime_us(clock.CLOCK_MONOTONIC)
-        if "wpa_state" in stat:
-            state = stat["wpa_state"]
-        else:
-            state = None
-        if state != last_state:
-            if "ssid" in stat:
-                ssid = stat["ssid"]
-            else:
-                ssid = ""
-            if "bssid" in stat:
-                bssid = stat["bssid"]
-            else:
-                bssid = ""
-            logger.debug("%0.3f %s %s %s", (now_us - start_us) / 1000000.0,
-                         state, ssid, bssid)
-            last_state = state
-        if state == "COMPLETED":
-            break
-        if state == "INACTIVE":
-            break
-    # end while
-    if state == "COMPLETED":
-        wpa.set("update_config", "1")
-        wpa.save()
-        wpa.set("update_config", "0")
-        os.system("md5sum %s > %s.md5" % \
-                  (wpa_supplicant_conf, wpa_supplicant_conf))
-        os.system("sync")
-        logger.info("pin pair successful")
-    else:
-        logger.info("pin pair failed")
-    return (state == "COMPLETED")
+    logger.info("WPS enrollment disabled; provision both device roots offline")
+    time.sleep(10)
+    return False
 
 
 # Returns:

@@ -1,5 +1,6 @@
 """Exercise Python 3 wire/text boundaries without network or device access."""
 import ast
+import configparser
 import importlib.util
 import io
 import logging
@@ -128,6 +129,53 @@ class BinaryProtocolTests(unittest.TestCase):
         self.assertEqual(struct.unpack("<BBBB32s32s", packet)[4].rstrip(b"\0"), b"3.0.0")
         ns["set_controller_versions"].assert_called_once()
         ns["go_ready"].assert_called_once()
+
+    def test_offline_enrolled_controller_still_requires_and_accepts_confirmation(self):
+        # Execute the actual controller event dispatch body, with socket/clock/file
+        # boundaries substituted. No service startup, hardware or network access.
+        path = ROOT / 'pair/pair_server.py'
+        tree = ast.parse(path.read_text())
+        dispatch = next(n for n in tree.body if isinstance(n, ast.While))
+        one_event = compile(ast.Module(body=dispatch.body, type_ignores=[]), str(path), 'exec')
+        pair = load('pair/pair.py')
+        station, stm32, host = mock.Mock(), mock.Mock(), mock.Mock()
+        mac = '00:11:22:33:44:55'
+        packet = struct.pack('<BBBB32s32s', pair.CMD_CONN_REQ, pair.SYS_SOLO, 0, 0, b'v', b'f')
+        station.recvfrom.return_value = (packet, ('10.1.1.10', 5501))
+        solo = types.SimpleNamespace(mac=None, name=None, confirmed=None, locked=None)
+        def set_solo(name, address):
+            solo.name, solo.mac = name, address
+        solo.set = set_solo
+        solo.set_versions = mock.Mock()
+        ns = functions('pair/pair_server.py', ['connect_request_valid', 'pair_confirm_answer', 'set_state', 'handle_pin_request'], {
+            'pair': pair, 'logger': mock.Mock(), 'state_names': ['IDLE', 'USER_WAIT', 'CONNECTED'],
+            'STATE_IDLE': 0, 'STATE_USER_WAIT': 1, 'STATE_CONNECTED': 2, 'state': 0,
+            'select': types.SimpleNamespace(select=mock.Mock(return_value=([station], [], []))),
+            'clock': types.SimpleNamespace(gettime_us=lambda clock: 1, CLOCK_MONOTONIC=1),
+            'hostapd': types.SimpleNamespace(sock=host), 'stm32_sock': stm32, 'pair_sock': station,
+            'ip_util': types.SimpleNamespace(get_ip_mac=lambda ip: mac),
+            'pairing_config': configparser.ConfigParser(), 'blacklist': [], 'solo': solo,
+            'conn_ack_yes': b'yes', 'conn_ack_no': b'no', 'conn_ack_pend': b'pending',
+            'send_pair_request': mock.Mock(), 'set_paired_solo': mock.Mock(),
+            'send_pair_result': mock.Mock(), 'set_solo': mock.Mock(), 'go_ready': mock.Mock(),
+            'check_user_wait_timeout': mock.Mock(), 'lockout_msg': mock.Mock(),
+            '_decode_pkt_field': lambda data: data.rstrip(b'\0').decode(), 'check_versions': False,
+        })
+        self.assertEqual(ns['handle_pin_request'](1, ['WPS-PIN-NEEDED']), 0)
+        exec(one_event, ns)
+        self.assertEqual(ns['state'], 1)
+        station.sendto.assert_called_with(b'pending', ('10.1.1.10', 5501))
+        ns['send_pair_request'].assert_called_once()
+        ns['select'].select.return_value = ([stm32], [], [])
+        stm32.recv.return_value = b'\1'
+        exec(one_event, ns)
+        self.assertEqual(ns['state'], 2)
+        ns['set_paired_solo'].assert_called_once_with(solo)
+        ns['select'].select.return_value = ([station], [], [])
+        exec(one_event, ns)
+        station.sendto.assert_called_with(b'yes', ('10.1.1.10', 5501))
+        ns['send_pair_result'].assert_called_once_with(solo.name)
+        ns['go_ready'].assert_called_once()
 
     def test_pair_button_reads_binary_input_event(self):
         event = struct.pack("@QHHi", 0, 1, 0x211, 1)

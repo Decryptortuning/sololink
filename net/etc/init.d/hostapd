@@ -16,11 +16,6 @@ isEnabled() {
     grep -i -q "[[:space:]]*$2[[:space:]]*=[[:space:]]*True" $1
 }
 
-# Return true if the SSID in hostapd.conf is still the default
-isDefault() {
-    grep -i -q "^ssid=SoloLink_Default" $1
-}
-
 #Return the country code we should be using
 getCountryCode() {
     mkdir -p /tmp/bootmnt
@@ -36,6 +31,10 @@ getCountryCode() {
 
 case "$1" in
     start)
+        /usr/bin/opensolo_wifi.py --kind hostapd ready || {
+            logger -t hostapd "AP unavailable: offline Wi-Fi provisioning required"
+            exit 1
+        }
 	# If the 3dr config file does not exist, or if it does and ApEnable
 	# is True, start hostapd
 	if [ ! -f $SOLO_CONF ] || isEnabled $SOLO_CONF ApEnable; then
@@ -44,13 +43,11 @@ case "$1" in
 	    cp ${HOSTAPD_CONF} ${HOSTAPD_BACK}
 	    md5sum ${HOSTAPD_BACK} > ${HOSTAPD_BACK}.md5
 	    sync
-	    # Unique-ize the SSID if it has not been done
-	    if isDefault ${HOSTAPD_CONF}; then
-		# update SSID
-		/usr/bin/hostapdconfig.py --ssid SoloLink_ --ssidmac wlan0-ap
-		# initialize regulatory domain
-		/usr/bin/hostapdconfig.py --country `getCountryCode`
-	    fi
+	    # SSID is the explicit paired value; never append a MAC at boot.
+            # Initialize regional policy once, independently of that paired SSID.
+            if ! grep -q "^country_code=" "$HOSTAPD_CONF"; then
+                /usr/bin/hostapdconfig.py --country "$(getCountryCode)"
+            fi
 	    # set channel to that of wlan0 if it is associated
 	    if isEnabled $SOLO_CONF StationEnable; then
                 # Concurrent interfaces share one PHY: require a station channel.
@@ -84,6 +81,7 @@ case "$1" in
 	$0 start
 	;;
     reload)
+        /usr/bin/opensolo_wifi.py --kind hostapd ready || exit 1
 	echo -n "Reloading $DESC: "
 	killall -HUP $(basename ${DAEMON})
 	echo "$NAME."

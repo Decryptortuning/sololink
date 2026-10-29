@@ -92,10 +92,7 @@ logger.info("firmware version \"%s\"", controller_firmware_version)
 user_wait_timeout_us = int(user_confirmation_timeout * 1000000)
 user_wait_start_us = None
 
-# It is not critical that the PIN be secret. The reason for using WPS PIN is
-# not the PIN's security (it is not), but that we can cause hostapd to ask us
-# for the PIN, at which time get confirmation from the user.
-secret_pin = 74015887
+# Wireless enrollment is offline; no fixed WPS PIN is supported.
 
 
 # States the controller side can be in
@@ -116,7 +113,6 @@ secret_pin = 74015887
 # Actions to take on state transitions
 #   send pair request to stm32
 #   send pair result to stm32
-#   send pin response to hostapd
 #   send connect/yes to solo
 #   send connect/no to solo
 #   send connect/pend to solo
@@ -129,8 +125,8 @@ secret_pin = 74015887
 # A "connected solo" is one that we have gotten a connect request from and
 # sent a connect yes to.
 #
-# A solo becomes the "paired solo" by sending a pin request and having the
-# user approve it. The "paired solo" is remembered in a file.
+# An offline-enrolled solo becomes the "paired solo" by sending a connection
+# request and receiving user confirmation. It is remembered in a file.
 #
 # A solo then becomes the "connected solo" by sending a connect request to
 # which we respond with a connect yes. The "connected solo" is established
@@ -386,35 +382,10 @@ def check_user_wait_timeout(now_us):
 #   STATE_USER_WAIT (asked used to confirm)
 #   STATE_CONNECTED (known solo)
 def handle_pin_request(now_us, msg):
-    global solo
-    global user_wait_start_us
-    logger.debug("handle_pin_request: %s", msg)
-    if not pin_req_valid(msg):
-        return STATE_IDLE
-    # pin_req_valid sets solo.uuid, solo.mac, and solo.name
-    # Has user rejected this solo since power on?
-    if solo.mac in blacklist:
-        logger.info("pin request from rejected solo; ignoring")
-        return STATE_IDLE
-    # Is this the paired Solo? (hmm, if so, it forgot its pairing)
-    if pairing_config.has_section(solo.mac):
-        logger.info("pin request from known solo")
-        # send pin reply to hostapd
-        hostapd.send_pin(solo.uuid, secret_pin)
-        logger.debug("sending pin for uuid %s", solo.uuid)
-        solo.confirmed = False
-        return STATE_CONNECTED
-    else:
-        logger.info("pin request from unknown solo; need user confirmation")
-        # send pair request to the STM32
-        solo.need_pin = True
-        send_pair_request(solo.name)
-        user_wait_start_us = now_us
-        return STATE_USER_WAIT
+    # Offline station credentials still use normal connection confirmation below.
+    return STATE_IDLE
 
 
-# True if user accepted pairing
-# False if user did not accepted pairing
 def pair_confirm_answer(stm32_pkt):
     if not stm32_pkt:
         return False
@@ -520,10 +491,6 @@ while True:
         elif pair_confirm_answer(pkt):
             logger.debug("user accepted pairing")
             set_paired_solo(solo)
-            if solo.need_pin:
-                logger.debug("sending pin %d for uuid %s",
-                             secret_pin, solo.uuid)
-                hostapd.send_pin(solo.uuid, secret_pin)
             solo.confirmed = False
             set_state(STATE_CONNECTED)
         else:
@@ -637,15 +604,6 @@ while True:
                         go_ready()
                         # remember the last time we heard from the connected solo
                         solo.last_msg_us = now_us
-                        # There is an edge case here, probably only stimulated
-                        # by forcing it while testing: Artoo is entering its
-                        # CONNECTED state. If one unpairs the Solo and reboots
-                        # it, then Solo will come up and when the pair button is
-                        # pressed, send a PIN request. This Artoo will not respond
-                        # to it because it went straight from IDLE to CONNECTED.
-                        # We cannot pre-load the PIN into hostapd at this point
-                        # because we do not know the Solo's UUID. Artoo must be
-                        # restarted to handle that case.
                     elif source_mac in blacklist:
                         # User has rejected this Solo since power on
                         logger.info("connection request from rejected solo: " + \

@@ -126,14 +126,4 @@ def reconfigure(ifname):
 import datetime
 
 def wps_logged():
-    log = open("/log/wps.log", "a")
-    pin_pair("wlan0", 74015887)
-    last_stat = {}
-    while True:  
-        stat = get_status("wlan0")
-        if stat != last_stat:
-            log.write(str(datetime.datetime.now()))
-            log.write(": ")
-            log.write(str(stat))
-            log.write("\n")
-            last_stat = stat
+    raise RuntimeError("WPS enrollment disabled; use offline pair provisioning")
