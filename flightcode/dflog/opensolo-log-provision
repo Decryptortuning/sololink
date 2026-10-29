@@ -1,0 +1,127 @@
+#!/usr/bin/python3
+"""Explicit offline provisioning: no network, host scanning, or shared secrets."""
+import argparse
+import base64
+import json
+import os
+from pathlib import Path
+import struct
+import subprocess
+import tempfile
+
+DESTINATION = "sololog@10.1.1.1:."
+
+
+def path_under(root, relative):
+    root = Path(root).absolute()
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError("root must be an existing real directory")
+    path = root
+    for part in Path(relative).parts:
+        if part in ("..", "/"):
+            raise ValueError("invalid relative path")
+        path = path / part
+        if path.is_symlink():
+            raise ValueError("refusing symlink in provisioning path: %s" % path)
+    return path
+
+
+def public_key(text):
+    parts = text.strip().split()
+    if len(parts) < 2 or parts[0] != "ssh-ed25519" or "\n" in text.strip():
+        raise ValueError("expected one plain Ed25519 public key")
+    blob = base64.b64decode(parts[1], validate=True)
+    expected = struct.pack(">I", 11) + b"ssh-ed25519" + struct.pack(">I", 32)
+    if len(blob) != len(expected) + 32 or not blob.startswith(expected):
+        raise ValueError("invalid Ed25519 public key encoding")
+    return parts[0] + " " + parts[1]
+
+
+def write_file(path, text, mode=0o600):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".provision-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def identity(root, role):
+    relative = "etc/opensolo/log-transfer/id_ed25519" if role == "drone" else "etc/ssh/ssh_host_ed25519_key"
+    private = path_under(root, relative)
+    public = path_under(root, relative + ".pub")
+    private.parent.mkdir(parents=True, exist_ok=True)
+    if role == "drone":
+        private.parent.chmod(0o700)
+    if not private.exists():
+        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(private)], check=True)
+    actual = public_key(subprocess.check_output(["ssh-keygen", "-y", "-f", str(private)], text=True))
+    if public.exists() and public_key(public.read_text()) != actual:
+        raise ValueError("public/private key mismatch")
+    private.chmod(0o600)
+    write_file(public, actual + "\n", 0o644)
+    return actual
+
+
+def pair(drone_root, controller_root):
+    if Path(drone_root).resolve() == Path(controller_root).resolve():
+        raise ValueError("drone and controller must have distinct filesystem roots")
+    # Read existing identities only; trust is the operator's explicit selection of
+    # these locally attached filesystems. No TOFU or network discovery is involved.
+    def checked_key(root, relative):
+        private = path_under(root, relative)
+        public = path_under(root, relative + ".pub")
+        actual = public_key(subprocess.check_output(["ssh-keygen", "-y", "-f", str(private)], text=True))
+        if public_key(public.read_text()) != actual:
+            raise ValueError("public/private key mismatch")
+        return actual
+    drone = checked_key(drone_root, "etc/opensolo/log-transfer/id_ed25519")
+    host = checked_key(controller_root, "etc/ssh/ssh_host_ed25519_key")
+    authorized = path_under(controller_root, "etc/opensolo/log-receiver/authorized_keys")
+    # Root-owned public credential directory must be traversable by sololog.
+    authorized.parent.mkdir(parents=True, exist_ok=True)
+    authorized.parent.chmod(0o755)
+    write_file(authorized, "restrict " + drone + "\n", 0o644)
+    known = path_under(drone_root, "etc/opensolo/log-transfer/known_hosts")
+    write_file(known, "10.1.1.1 " + host + "\n")
+    # Last write enables transfer; interrupted pairing remains visibly unavailable.
+    write_file(path_under(drone_root, "etc/opensolo/log-transfer/pair.json"),
+               json.dumps({"enabled": True, "destination": DESTINATION}) + "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    create = commands.add_parser("identity", help="create or verify one device's private identity")
+    create.add_argument("--root", required=True)
+    create.add_argument("--role", choices=("drone", "controller"), required=True)
+    paired = commands.add_parser("pair", help="explicitly trust two locally attached device roots")
+    paired.add_argument("--drone-root", required=True)
+    paired.add_argument("--controller-root", required=True)
+    admin = commands.add_parser("authorize-admin", help="install operator public key for root login")
+    admin.add_argument("--root", required=True)
+    admin.add_argument("--public-key", required=True)
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error("run as root to provision root-owned device configuration")
+    if args.command == "identity":
+        identity(args.root, args.role)
+    elif args.command == "pair":
+        pair(args.drone_root, args.controller_root)
+    else:
+        key = public_key(Path(args.public_key).read_text())
+        authorized = path_under(args.root, "home/root/.ssh/authorized_keys")
+        authorized.parent.mkdir(parents=True, exist_ok=True)
+        authorized.parent.chmod(0o700)
+        write_file(authorized, key + "\n")
+    print("Provisioning complete; no private key was exported.")
+
+
+if __name__ == "__main__":
+    main()
