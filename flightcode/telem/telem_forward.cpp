@@ -30,7 +30,7 @@
 #include <opensolo/mavlink/solo/mavlink.h>
 #include "../ini/cpp/INIReader.h"
 #include <signal.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include "link_packet.h"
 #include "net_wmm.h"
 
@@ -221,7 +221,7 @@ int UDP_setup(int tos)
 
     /* create a UDP socket */
     if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        syslog(LOG_ERR, "can't create socket");
+        opensolo_syslog(LOG_ERR, "can't create socket");
         return 0;
     }
 
@@ -229,7 +229,7 @@ int UDP_setup(int tos)
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) != 0) {
-        syslog(LOG_ERR, "setsockopt (SO_RCVTIMEO) failed");
+        opensolo_syslog(LOG_ERR, "setsockopt (SO_RCVTIMEO) failed");
         return 0;
     }
 
@@ -242,16 +242,16 @@ int UDP_setup(int tos)
     myaddr.sin_port = htons(UDP_PORT);
 
     if (bind(sock_fd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
-        syslog(LOG_ERR, "bind failed");
+        opensolo_syslog(LOG_ERR, "bind failed");
         return 0;
     }
 
     if (setsockopt(sock_fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) != 0) {
-        syslog(LOG_ERR, "setsockopt (IP_TOS) failed");
+        opensolo_syslog(LOG_ERR, "setsockopt (IP_TOS) failed");
         return 0;
     }
 
-    syslog(LOG_INFO, "opened port %d", UDP_PORT);
+    opensolo_syslog(LOG_INFO, "opened port %d", UDP_PORT);
     return 1;
 }
 
@@ -269,7 +269,7 @@ int inject_setup(const char *sock_name)
     struct sockaddr_un un;
 
     if (strlen(sock_name) >= sizeof(un.sun_path)) {
-        syslog(LOG_ERR, "inject socket name too long");
+        opensolo_syslog(LOG_ERR, "inject socket name too long");
         return 0;
     }
 
@@ -280,7 +280,7 @@ int inject_setup(const char *sock_name)
     // create socket
     inject_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (inject_fd < 0) {
-        syslog(LOG_ERR, "creating inject socket");
+        opensolo_syslog(LOG_ERR, "creating inject socket");
         return 0;
     }
 
@@ -289,7 +289,7 @@ int inject_setup(const char *sock_name)
     un.sun_family = AF_UNIX;
     strncpy(un.sun_path, sock_name, sizeof(un.sun_path) - 1);
     if (bind(inject_fd, (struct sockaddr *)&un, sizeof(un)) != 0) {
-        syslog(LOG_ERR, "binding inject socket");
+        opensolo_syslog(LOG_ERR, "binding inject socket");
         close(inject_fd);
         inject_fd = -1;
         return 0;
@@ -313,7 +313,7 @@ int serial_setup(int baud)
     serial_fd = open(serialPortName.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
 
     if (serial_fd < 0) {
-        syslog(LOG_ERR, "unable to open serial port %s", serialPortName.c_str());
+        opensolo_syslog(LOG_ERR, "unable to open serial port %s", serialPortName.c_str());
         return 0;
     }
 
@@ -355,7 +355,7 @@ int serial_setup(int baud)
         cfsetspeed(&options, B1500000);
         break;
     default:
-        syslog(LOG_ERR, "unsupported baud rate %d", baud);
+        opensolo_syslog(LOG_ERR, "unsupported baud rate %d", baud);
         return 0;
     }
     options.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP | IXON);
@@ -394,7 +394,7 @@ int serial_setup(int baud)
 
     tcsetattr(serial_fd, TCSANOW, &options); // Set the new options for the port "NOW"
 
-    syslog(LOG_INFO, "opened serial port %s", serialPortName.c_str());
+    opensolo_syslog(LOG_INFO, "opened serial port %s", serialPortName.c_str());
 
     return 1;
 }
@@ -404,7 +404,7 @@ void set_seen_sysid_compid_from_client(uint8_t target_system, uint8_t target_com
 {
     pthread_mutex_lock(&mutex_arp_table);
     if (!arp_table[target_system][target_component]) {
-        syslog(LOG_INFO, "ARP: Seen (%d/%d) from %s:%d client=%p", target_system, target_component,
+        opensolo_syslog(LOG_INFO, "ARP: Seen (%d/%d) from %s:%d client=%p", target_system, target_component,
                inet_ntoa(client->sa.sin_addr), ntohs(client->sa.sin_port), &client);
         arp_table[target_system][target_component] = client;
         arp_table[target_system][0] = client;
@@ -468,7 +468,7 @@ void purge_client_from_arp_table(sockdata *client)
             if (clients_match(some_client, client)) {
                 const uint8_t target_system = (*it).first;
                 const uint8_t target_component = (*iv).first;
-                syslog(LOG_INFO, "ARP: Purging (%d/%d) from %s:%d client=%p", target_system,
+                opensolo_syslog(LOG_INFO, "ARP: Purging (%d/%d) from %s:%d client=%p", target_system,
                        target_component, inet_ntoa(client->sa.sin_addr), ntohs(client->sa.sin_port),
                        &client);
                 (*it).second.erase(target_component);
@@ -496,7 +496,7 @@ struct sockdata *find_client(uint64_t now_us, struct sockaddr_in remaddr)
          remaddr.sin_port == artooaddr.sin_port)) {
         return NULL;
     }
-    syslog(LOG_INFO, "adding new client %s:%d", inet_ntoa(remaddr.sin_addr),
+    opensolo_syslog(LOG_INFO, "adding new client %s:%d", inet_ntoa(remaddr.sin_addr),
            ntohs(remaddr.sin_port));
 
     struct sockdata *client = new sockdata();
@@ -548,7 +548,7 @@ void *upstream_task(void *)
 
         if (recvlen < 0) {
             if (errno != EAGAIN)
-                syslog(LOG_ERR, "upstream socket error: %s", strerror(errno));
+                opensolo_syslog(LOG_ERR, "upstream socket error: %s", strerror(errno));
 
             if (next_client_timeout_check < now_us) {
                 check_client_timeouts(now_us);
@@ -589,14 +589,14 @@ void *upstream_task(void *)
 #if 1 // debug
 
                 if (buf[5] == MAVLINK_MSG_ID_SET_MODE) {
-                    syslog(LOG_INFO, "SET_MODE: from %s:%d", inet_ntoa(remaddr.sin_addr),
+                    opensolo_syslog(LOG_INFO, "SET_MODE: from %s:%d", inet_ntoa(remaddr.sin_addr),
                            ntohs(remaddr.sin_port));
                     // we don't have a mav_msg to use for unpacking
                     // custom_mode is the first four bytes, little endian
-                    syslog(LOG_INFO, "SET_MODE: len=%u src_sys=%u src_comp=%u", unsigned(buf[1]),
+                    opensolo_syslog(LOG_INFO, "SET_MODE: len=%u src_sys=%u src_comp=%u", unsigned(buf[1]),
                            unsigned(buf[3]), unsigned(buf[4]));
                     if (unsigned(buf[1]) == MAVLINK_MSG_ID_SET_MODE_LEN)
-                        syslog(LOG_INFO,
+                        opensolo_syslog(LOG_INFO,
                                "SET_MODE: custom_mode=%u.%u.%u.%u target_system=%u base_mode=%u",
                                unsigned(buf[9]), unsigned(buf[8]), unsigned(buf[7]),
                                unsigned(buf[6]), unsigned(buf[10]), unsigned(buf[11]));
@@ -625,7 +625,7 @@ void *upstream_task(void *)
 
                 if ((4000 - txBufUsage) < recvlen) {
                     // Congestion; serial port tx buffer is filling up
-                    syslog(LOG_INFO, "serial port tx full; waiting for room");
+                    opensolo_syslog(LOG_INFO, "serial port tx full; waiting for room");
 
                     // Worst-case wait time is if we have a long message to
                     // send and are running at a low baud rate. For a long
@@ -648,7 +648,7 @@ void *upstream_task(void *)
                             // Either imx6 output serial port is stuck, or
                             // Pixhawk is not reading from its end.
                             // Restarting the process may fix the former.
-                            syslog(LOG_ERR, "serial port tx stuck; exiting");
+                            opensolo_syslog(LOG_ERR, "serial port tx stuck; exiting");
                             exit(1);
                         } else {
                             // There's close to 4000 bytes queued in the port,
@@ -657,7 +657,7 @@ void *upstream_task(void *)
                             usleep(10000); // 10 msec
                         }
                     }
-                    syslog(LOG_INFO, "serial port tx was full; now resuming");
+                    opensolo_syslog(LOG_INFO, "serial port tx was full; now resuming");
                 }
 
                 // If we're rc-locked, don't send an arm command
@@ -672,7 +672,7 @@ void *upstream_task(void *)
                                 mavlink_msg_command_long_decode(&mav_msg, &mav_cmd_long);
                                 if (mav_cmd_long.command == MAV_CMD_COMPONENT_ARM_DISARM &&
                                     mav_cmd_long.param1 == 1) {
-                                    syslog(LOG_ERR,
+                                    opensolo_syslog(LOG_ERR,
                                            "arm command received but RC is locked out; ignoring");
                                     discard = true;
                                 }
@@ -684,7 +684,7 @@ void *upstream_task(void *)
                 if (!discard) {
                     if (write(serial_fd, buf, recvlen) != recvlen) {
                         int err = errno;
-                        syslog(LOG_ERR, "serial port write error: %s", strerror(err));
+                        opensolo_syslog(LOG_ERR, "serial port write error: %s", strerror(err));
                     } else {
                         pthread_mutex_lock(&mutex_upStats);
                         serialUpBytes += recvlen;
@@ -736,7 +736,7 @@ void check_client_timeouts(uint64_t now_us)
         uint64_t delta_us = now_us - client->lastRecvTime_us;
 
         if (delta_us > CLIENT_TIMEOUT_US) {
-            syslog(LOG_INFO, "client %s:%d timed out after %0.3fs of inactivity; removing",
+            opensolo_syslog(LOG_INFO, "client %s:%d timed out after %0.3fs of inactivity; removing",
                    inet_ntoa(client->sa.sin_addr), ntohs(client->sa.sin_port), delta_us / 1.0e6);
             purge_client_from_arp_table(client);
             clients.erase(it);
@@ -764,7 +764,7 @@ int start_upstream_thread(void)
     // upstream priority and schedule
     param.sched_priority = UPSTREAM_PRIORITY;
     if ((ret = pthread_setschedparam(upstream_ctx, SCHED_FIFO, &param)))
-        syslog(LOG_ERR, "could not set upstream schedule priority: %d", ret);
+        opensolo_syslog(LOG_ERR, "could not set upstream schedule priority: %d", ret);
 
     return ret;
 }
@@ -796,14 +796,14 @@ static bool handle_system_time(const mavlink_message_t &msg)
 
         strftime(utc_buf, sizeof(utc_buf), "%F %T", &utc);
 
-        syslog(LOG_INFO, "GPS time: %s.%06ld", utc_buf, tv.tv_usec);
+        opensolo_syslog(LOG_INFO, "GPS time: %s.%06ld", utc_buf, tv.tv_usec);
 
         if (useGpsTime) {
             int status = settimeofday(&tv, NULL);
             if (status != 0)
-                syslog(LOG_ERR, "setting clock from GPS");
+                opensolo_syslog(LOG_ERR, "setting clock from GPS");
             else
-                syslog(LOG_INFO, "clock set from GPS");
+                opensolo_syslog(LOG_INFO, "clock set from GPS");
         }
         return true;
     }
@@ -940,13 +940,13 @@ void *downstream_task(void *)
             // print error message only when errno changes to avoid log storms
             if (errno != poll_errno_last) {
                 int err = errno;
-                syslog(LOG_ERR, "poll: %s", strerror(err));
+                opensolo_syslog(LOG_ERR, "poll: %s", strerror(err));
                 poll_errno_last = err;
             }
         } else if (pollrc == 0) {
             // used for ppoll() timeout; should not get this from poll()
             if (!poll_zero) {
-                syslog(LOG_ERR, "poll returned zero");
+                opensolo_syslog(LOG_ERR, "poll returned zero");
                 poll_zero = true;
             }
         } else // (pollrc > 0)
@@ -1024,7 +1024,7 @@ void *downstream_task(void *)
                                  * 100ms */
                                 if (messageLen > (packet.MAX_PAYLOAD - payload_used)) {
                                     /* Force a send */
-                                    syslog(LOG_ERR, "Message too large for aggregate buffer, "
+                                    opensolo_syslog(LOG_ERR, "Message too large for aggregate buffer, "
                                                     "sending LinkPacket first");
                                     packet.tf_send_us = clock_gettime_us(CLOCK_MONOTONIC);
                                     packet.tc_recv_us = 0;
@@ -1044,7 +1044,7 @@ void *downstream_task(void *)
                                         if (dl_err_logged_us == 0 ||
                                             (now_us - dl_err_logged_us) >= dl_err_interval_us) {
                                             // log error
-                                            syslog(LOG_ERR, "sendto(downlink): %s (%u errors)",
+                                            opensolo_syslog(LOG_ERR, "sendto(downlink): %s (%u errors)",
                                                    strerror(errno), dl_err_count);
                                             dl_err_logged_us = now_us;
                                             dl_err_count = 0;
@@ -1086,7 +1086,7 @@ void *downstream_task(void *)
                                     if (ll_err_logged_us == 0 ||
                                         (now_us - ll_err_logged_us) >= ll_err_interval_us) {
                                         // log error
-                                        syslog(LOG_ERR, "sendto(local link): %s (%u errors)",
+                                        opensolo_syslog(LOG_ERR, "sendto(local link): %s (%u errors)",
                                                strerror(errno), ll_err_count);
                                         ll_err_logged_us = now_us;
                                         ll_err_count = 0;
@@ -1108,14 +1108,14 @@ void *downstream_task(void *)
                     // log storms
                     if (errno != recv_errno_last) {
                         int err = errno;
-                        syslog(LOG_ERR, "recv: %s", strerror(err));
+                        opensolo_syslog(LOG_ERR, "recv: %s", strerror(err));
                         recv_errno_last = err;
                     }
                 } else if (readlen == 0) {
                     // this means the peer has performed an orderly shutdown
                     // which does not make sense for us
                     if (!recv_zero) {
-                        syslog(LOG_ERR, "recv returned zero");
+                        opensolo_syslog(LOG_ERR, "recv returned zero");
                         recv_zero = true;
                     }
                 } else // readlen > 0
@@ -1132,7 +1132,7 @@ void *downstream_task(void *)
                         payload_used += readlen;
                     } else {
                         /* Whoops, we dropped one here */
-                        syslog(LOG_ERR, "Inject message too large for aggregate buffer, dropping");
+                        opensolo_syslog(LOG_ERR, "Inject message too large for aggregate buffer, dropping");
                     }
 
                     pthread_mutex_lock(&mutex_downStats);
@@ -1184,7 +1184,7 @@ void *downstream_task(void *)
                     if (dl_err_logged_us == 0 ||
                         (now_us - dl_err_logged_us) >= dl_err_interval_us) {
                         // log error
-                        syslog(LOG_ERR, "sendto(downlink): %s (%u errors)", strerror(errno),
+                        opensolo_syslog(LOG_ERR, "sendto(downlink): %s (%u errors)", strerror(errno),
                                dl_err_count);
                         dl_err_logged_us = now_us;
                         dl_err_count = 0;
@@ -1223,7 +1223,7 @@ int start_downstream_thread(void)
     // downstream priority and schedule
     param.sched_priority = DOWNSTREAM_PRIORITY;
     if ((ret = pthread_setschedparam(downstream_ctx, SCHED_FIFO, &param)))
-        syslog(LOG_ERR, "could not set downstream schedule priority: %d", ret);
+        opensolo_syslog(LOG_ERR, "could not set downstream schedule priority: %d", ret);
 
     return ret;
 }
@@ -1263,11 +1263,11 @@ void *logging_task(void *)
             double downPct = (serialDownBytes * 1e9) / ((double)(delta_us * serialBaud));
             double upPct = (serialUpBytes * 1e9) / ((double)(delta_us * serialBaud));
 
-            syslog(LOG_INFO, "down: %d m/s, %d b/s, %d%%; up: %d m/s, %d b/s, %d%%",
+            opensolo_syslog(LOG_INFO, "down: %d m/s, %d b/s, %d%%; up: %d m/s, %d b/s, %d%%",
                    int(downMsgs * 1e6 / delta_us), int(downBytes * 1e6 / delta_us), int(downPct),
                    int(upMsgs * 1e6 / delta_us), int(upBytes * 1e6 / delta_us), int(upPct));
             if (upBadShort != 0 || upBadMagic != 0 || upBadLength != 0) {
-                syslog(LOG_INFO, "up err: %u, %u, %u", upBadShort, upBadMagic, upBadLength);
+                opensolo_syslog(LOG_INFO, "up err: %u, %u, %u", upBadShort, upBadMagic, upBadLength);
                 upBadShort = 0;
                 upBadMagic = 0;
                 upBadLength = 0;
@@ -1290,7 +1290,7 @@ void *logging_task(void *)
                         downMsgsById[id] = 0;
                     }
                 }
-                syslog(LOG_INFO, "%s", dbg.str().c_str());
+                opensolo_syslog(LOG_INFO, "%s", dbg.str().c_str());
             }
 
             pthread_mutex_unlock(&mutex_upStats);
@@ -1313,7 +1313,7 @@ void *logging_task(void *)
             }
             pthread_mutex_unlock(&mutex_streams);
             if (any_errs) {
-                syslog(LOG_INFO, "%s", dbg.str().c_str());
+                opensolo_syslog(LOG_INFO, "%s", dbg.str().c_str());
             }
         }
 
@@ -1341,7 +1341,7 @@ int start_logging_thread(void)
     // logging priority and schedule
     param.sched_priority = LOG_PRIORITY;
     if ((ret = pthread_setschedparam(logging_ctx, SCHED_FIFO, &param)))
-        syslog(LOG_ERR, "could not set logging schedule priority: %d", ret);
+        opensolo_syslog(LOG_ERR, "could not set logging schedule priority: %d", ret);
 
     return ret;
 }
@@ -1357,21 +1357,21 @@ int main(void)
     int destPort;
     string inject_name;
 
-    openlog("tlm", LOG_NDELAY, LOG_LOCAL4);
+    opensolo_openlog("tlm", LOG_NDELAY, LOG_LOCAL4);
 
-    syslog(LOG_INFO, "Installing SIGQUIT signal handler");
+    opensolo_syslog(LOG_INFO, "Installing SIGQUIT signal handler");
     signal(SIGQUIT, sigquit_handler);
 
     serialDownBytes = 0;
     serialUpBytes = 0;
 
-    syslog(LOG_INFO, "telem_forwarder starting: built " __DATE__ " " __TIME__);
+    opensolo_syslog(LOG_INFO, "telem_forwarder starting: built " __DATE__ " " __TIME__);
 
     /* Parse the sololink.conf file for serial port, source IPs and ports */
     INIReader reader("/etc/sololink.conf");
 
     if (reader.ParseError() < 0) {
-        syslog(LOG_CRIT, "can't parse /etc/sololink.conf");
+        opensolo_syslog(LOG_CRIT, "can't parse /etc/sololink.conf");
         return -1;
     }
 
@@ -1393,29 +1393,29 @@ int main(void)
     /* Logging control (debug) */
     logControl = reader.GetInteger("solo", "telemLogControl", 0);
 
-    syslog(LOG_INFO, "serial port: %s", serialPortName.c_str());
-    syslog(LOG_INFO, "serial baudrate: %d", serialBaud);
-    syslog(LOG_INFO, "serial hw flow: %s", serialFlow ? "true" : "false");
-    syslog(LOG_INFO, "UDP dest port: %d", destPort);
-    syslog(LOG_INFO, "use GPS time: %s", useGpsTime ? "true" : "false");
-    syslog(LOG_INFO, "tos: 0x%02x", (uint8_t)tos);
+    opensolo_syslog(LOG_INFO, "serial port: %s", serialPortName.c_str());
+    opensolo_syslog(LOG_INFO, "serial baudrate: %d", serialBaud);
+    opensolo_syslog(LOG_INFO, "serial hw flow: %s", serialFlow ? "true" : "false");
+    opensolo_syslog(LOG_INFO, "UDP dest port: %d", destPort);
+    opensolo_syslog(LOG_INFO, "use GPS time: %s", useGpsTime ? "true" : "false");
+    opensolo_syslog(LOG_INFO, "tos: 0x%02x", (uint8_t)tos);
     if (logControl != 0)
-        syslog(LOG_INFO, "log control: 0x%08x", logControl);
+        opensolo_syslog(LOG_INFO, "log control: 0x%08x", logControl);
 
     /* Set up the various ports */
 
     if (!UDP_setup(tos)) {
-        syslog(LOG_CRIT, "unable to initialize the UDP receive");
+        opensolo_syslog(LOG_CRIT, "unable to initialize the UDP receive");
         return -1;
     }
 
     if (!serial_setup(serialBaud)) {
-        syslog(LOG_CRIT, "unable to initialize the serial send");
+        opensolo_syslog(LOG_CRIT, "unable to initialize the serial send");
         return -1;
     }
 
     if (!inject_setup(inject_name.c_str())) {
-        syslog(LOG_CRIT, "unable to initialize the inject port");
+        opensolo_syslog(LOG_CRIT, "unable to initialize the inject port");
         return -1;
     }
 
@@ -1445,7 +1445,7 @@ int main(void)
 
         if (pthread_kill(upstream_ctx, 0) != 0 || pthread_kill(downstream_ctx, 0) != 0 ||
             pthread_kill(logging_ctx, 0) != 0) {
-            syslog(LOG_ERR, "a thread terminated; exiting");
+            opensolo_syslog(LOG_ERR, "a thread terminated; exiting");
             exit(0);
         }
 

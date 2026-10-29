@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <unistd.h>
 #include <sys/signalfd.h>
 #include <sys/types.h>
@@ -36,7 +36,7 @@ TcpClient::TcpClient(TcpServer *server, int fd_client)
 {
     int sockopt = 1;
     if (setsockopt(fd_client, IPPROTO_TCP, TCP_NODELAY, &sockopt, sizeof(sockopt)) != 0)
-        syslog(LOG_ERR, "TcpClient: setsockopt TCP_NODELAY: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "TcpClient: setsockopt TCP_NODELAY: %s", strerror(errno));
 }
 
 TcpClient::~TcpClient()
@@ -223,28 +223,28 @@ int TcpServer::start(void)
     // initialize clients list mutex
     res = mutex_init(&_clients_mutex);
     if (res != 0) {
-        syslog(LOG_ERR, "mutex_init: %d", res);
+        opensolo_syslog(LOG_ERR, "mutex_init: %d", res);
         goto start_exit_0;
     }
 
     // create listening socket
     _listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (_listen_fd < 0) {
-        syslog(LOG_ERR, "socket: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "socket: %s", strerror(errno));
         goto start_exit_1;
     }
 
     // non-blocking - this handles the race where a client tries to connect,
     // the select() activates, then the client is gone before the accept.
     if (fcntl(_listen_fd, F_SETFL, O_NONBLOCK) != 0) {
-        syslog(LOG_ERR, "fcntl: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "fcntl: %s", strerror(errno));
         goto start_exit_2;
     }
 
     // allow re-binding to our port in case of restart
     sockopt = 1;
     if (setsockopt(_listen_fd, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof(sockopt)) != 0) {
-        syslog(LOG_ERR, "setsockopt: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "setsockopt: %s", strerror(errno));
         goto start_exit_2;
     }
 
@@ -254,13 +254,13 @@ int TcpServer::start(void)
     sa.sin_port = htons(_listen_port);
     sa.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(_listen_fd, (struct sockaddr *)&sa, sizeof(sa)) == -1) {
-        syslog(LOG_ERR, "bind: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "bind: %s", strerror(errno));
         goto start_exit_2;
     }
 
     // listen for connections
     if (listen(_listen_fd, 10) == -1) {
-        syslog(LOG_ERR, "listen: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "listen: %s", strerror(errno));
         goto start_exit_2;
     }
 
@@ -280,7 +280,7 @@ int TcpServer::start(void)
     assert(res == 0); // invalid arguments
     _listen_sfd = signalfd(-1, &mask, 0);
     if (_listen_sfd < 0) {
-        syslog(LOG_ERR, "signalfd: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "signalfd: %s", strerror(errno));
         goto start_exit_2;
     }
 
@@ -293,7 +293,7 @@ int TcpServer::start(void)
     assert(res == 0); // invalid arguments
     _downstream_sfd = signalfd(-1, &mask, 0);
     if (_downstream_sfd < 0) {
-        syslog(LOG_ERR, "signalfd: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "signalfd: %s", strerror(errno));
         goto start_exit_3;
     }
 
@@ -301,7 +301,7 @@ int TcpServer::start(void)
     // stm32 downstream port
     _stm32_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (_stm32_fd < 0) {
-        syslog(LOG_ERR, "socket: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "socket: %s", strerror(errno));
         goto start_exit_4;
     }
 
@@ -311,29 +311,29 @@ int TcpServer::start(void)
     sa.sin_port = htons(0);
     sa.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(_stm32_fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-        syslog(LOG_ERR, "bind: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "bind: %s", strerror(errno));
         goto start_exit_5;
     }
 
     // start listen_thread
     if (pthread_create(&_listen_id, NULL, &TcpServer::listen_entry, this) != 0) {
-        syslog(LOG_ERR, "pthread_create: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "pthread_create: %s", strerror(errno));
         goto start_exit_5;
     }
 
     if (pthread_setname_np(_listen_id, "stm32_listen") != 0) {
-        syslog(LOG_ERR, "pthread_setname_np: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "pthread_setname_np: %s", strerror(errno));
         goto start_exit_6;
     }
 
     // start downstream_thread
     if (pthread_create(&_downstream_id, NULL, &TcpServer::downstream_entry, this) != 0) {
-        syslog(LOG_ERR, "pthread_create: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "pthread_create: %s", strerror(errno));
         goto start_exit_6;
     }
 
     if (pthread_setname_np(_downstream_id, "stm32_recv") != 0) {
-        syslog(LOG_ERR, "pthread_setname_np: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "pthread_setname_np: %s", strerror(errno));
         goto start_exit_7;
     }
 
@@ -407,7 +407,7 @@ void TcpServer::thread_kill(pthread_t id)
 {
     // SIGQUIT means quit
     if (pthread_kill(id, SIGQUIT) != 0)
-        syslog(LOG_ERR, "pthread_kill: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "pthread_kill: %s", strerror(errno));
 }
 
 // Wait for a thread to exit. It should have already received the SIGQUIT, so
@@ -426,7 +426,7 @@ void TcpServer::thread_wait(pthread_t id)
     }
 
     // the join never succeeded; try canceling
-    syslog(LOG_ERR, "thread_wait: canceling thread");
+    opensolo_syslog(LOG_ERR, "thread_wait: canceling thread");
     pthread_cancel(id);
     // thread cleans up asynchronously
     usleep(10000); // 10 msec
@@ -443,7 +443,7 @@ void *TcpServer::listen_thread(void)
     int nfds;
     fd_set rfds;
 
-    syslog(LOG_INFO, "%s listen_thread: starting", _name);
+    opensolo_syslog(LOG_INFO, "%s listen_thread: starting", _name);
 
     while (true) {
 
@@ -469,14 +469,14 @@ void *TcpServer::listen_thread(void)
                 // clear out the signal
                 signalfd_siginfo si;
                 if (read(_listen_sfd, &si, sizeof(si)) != sizeof(si)) {
-                    syslog(LOG_ERR, "%s listen_thread: reading siginfo", _name);
+                    opensolo_syslog(LOG_ERR, "%s listen_thread: reading siginfo", _name);
                     break; // while (true)
                 } else if (si.ssi_signo == SIGQUIT) {
                     // SIGQUIT means quit
                     break; // while (true)
                 } else {
                     // mystery signal
-                    syslog(LOG_ERR, "%s listen_thread: unexpected signal", _name);
+                    opensolo_syslog(LOG_ERR, "%s listen_thread: unexpected signal", _name);
                 }
             }
 
@@ -492,16 +492,16 @@ void *TcpServer::listen_thread(void)
                 int fd_client = accept(_listen_fd, (struct sockaddr *)&sa, &sa_len);
                 if (fd_client < 0) {
                     // client tried to connect then changed its mind
-                    syslog(LOG_ERR, "accept: %s", strerror(errno));
+                    opensolo_syslog(LOG_ERR, "accept: %s", strerror(errno));
                     usleep(10000); // 10ms
                     continue;
                 }
 
                 if (sa.sin_family == AF_INET)
-                    syslog(LOG_INFO, "%s listen_thread: adding client %d at %s:%u", _name,
+                    opensolo_syslog(LOG_INFO, "%s listen_thread: adding client %d at %s:%u", _name,
                            fd_client, inet_ntoa(sa.sin_addr), ntohs(sa.sin_port));
                 else
-                    syslog(LOG_INFO, "%s listen_thread: adding client %d", _name, fd_client);
+                    opensolo_syslog(LOG_INFO, "%s listen_thread: adding client %d", _name, fd_client);
 
                 // Add new client to the list of clients that gets everything
                 // via send_clients(). Clients are removed from this list when
@@ -514,15 +514,15 @@ void *TcpServer::listen_thread(void)
                 // Knock downstream_thread out of its select, so it will
                 // rebuild the fdset with the new client (we use SIGHUP).
                 if (pthread_kill(_downstream_id, SIGHUP) != 0)
-                    syslog(LOG_ERR, "pthread_kill: %s", strerror(errno));
+                    opensolo_syslog(LOG_ERR, "pthread_kill: %s", strerror(errno));
             }
         } else {
-            syslog(LOG_ERR, "%s listen_thread: select: %s", _name, strerror(errno));
+            opensolo_syslog(LOG_ERR, "%s listen_thread: select: %s", _name, strerror(errno));
         }
 
     } // while (true)
 
-    syslog(LOG_INFO, "%s listen_thread: exiting", _name);
+    opensolo_syslog(LOG_INFO, "%s listen_thread: exiting", _name);
 
     return NULL;
 
@@ -540,7 +540,7 @@ void *TcpServer::downstream_thread(void)
     int res;
     int fd;
 
-    syslog(LOG_INFO, "%s downstream_thread: starting", _name);
+    opensolo_syslog(LOG_INFO, "%s downstream_thread: starting", _name);
 
     while (true) {
 
@@ -574,7 +574,7 @@ void *TcpServer::downstream_thread(void)
             if (FD_ISSET(_downstream_sfd, &rfds)) {
                 signalfd_siginfo si;
                 if (read(_downstream_sfd, &si, sizeof(si)) != sizeof(si)) {
-                    syslog(LOG_ERR, "%s downstream_thread: reading siginfo", _name);
+                    opensolo_syslog(LOG_ERR, "%s downstream_thread: reading siginfo", _name);
                     break; // while (true)
                 } else if (si.ssi_signo == SIGQUIT) {
                     // SIGQUIT means quit
@@ -583,7 +583,7 @@ void *TcpServer::downstream_thread(void)
                     // SIGHUP means recreate the fdset we're waiting on
                 } else {
                     // mystery signal
-                    syslog(LOG_ERR, "%s downstream_thread: unexpected signal", _name);
+                    opensolo_syslog(LOG_ERR, "%s downstream_thread: unexpected signal", _name);
                 }
             }
 
@@ -595,7 +595,7 @@ void *TcpServer::downstream_thread(void)
                 TcpClient *c = *it;
                 if (FD_ISSET(c->fd_client(), &rfds)) {
                     if (!c->do_recv()) {
-                        syslog(LOG_INFO, "%s downstream_thread: deleting client %d", _name,
+                        opensolo_syslog(LOG_INFO, "%s downstream_thread: deleting client %d", _name,
                                c->fd_client());
                         _clients.erase(it);
                         delete c;
@@ -605,12 +605,12 @@ void *TcpServer::downstream_thread(void)
             pthread_mutex_unlock(&_clients_mutex);
         } else // res <= 0
         {
-            syslog(LOG_ERR, "%s downstream_thread: select returned %d", _name, res);
+            opensolo_syslog(LOG_ERR, "%s downstream_thread: select returned %d", _name, res);
         }
 
     } // while (true)
 
-    syslog(LOG_INFO, "%s downstream_thread: exiting", _name);
+    opensolo_syslog(LOG_INFO, "%s downstream_thread: exiting", _name);
 
     return NULL;
 
@@ -632,12 +632,12 @@ void TcpServer::send_clients(const void *data, int data_len)
         if (rc != data_len) {
             // The client might be gone; downstream thread detects that
             // and deletes it
-            syslog(LOG_ERR, "%s send_clients: %s", _name, strerror(errno));
+            opensolo_syslog(LOG_ERR, "%s send_clients: %s", _name, strerror(errno));
         }
         unsigned delay_us = t1_us - t0_us;
         if (delay_us > 10000) {
             // Looking for trouble - when does send_upstream block?
-            syslog(LOG_ERR, "%s send_clients: send_upstream took %u usec", _name, delay_us);
+            opensolo_syslog(LOG_ERR, "%s send_clients: send_upstream took %u usec", _name, delay_us);
         }
     }
 

@@ -1,4 +1,4 @@
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,7 +184,7 @@ static bool test_bug_trigger(const char *trigger_file)
 static void test_bug_exit(const char *trigger_file)
 {
     if (test_bug_trigger(trigger_file)) {
-        syslog(LOG_INFO, "udp: injecting crash");
+        opensolo_syslog(LOG_INFO, "udp: injecting crash");
         pthread_exit(NULL);
     }
 }
@@ -193,7 +193,7 @@ static void test_bug_exit(const char *trigger_file)
 static void test_bug_hang(const char *trigger_file)
 {
     if (test_bug_trigger(trigger_file)) {
-        syslog(LOG_INFO, "udp: injecting hang");
+        opensolo_syslog(LOG_INFO, "udp: injecting hang");
         while (1)
             sleep(1);
     }
@@ -219,7 +219,7 @@ static int UDP_setup(void)
 
     /* create a UDP socket */
     if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        syslog(LOG_ERR, "udp: can't create socket");
+        opensolo_syslog(LOG_ERR, "udp: can't create socket");
         return 0;
     }
 
@@ -227,7 +227,7 @@ static int UDP_setup(void)
     timeout.tv_sec = UDP_PERIOD_US / 1000000;
     timeout.tv_usec = UDP_PERIOD_US % 1000000;
     if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) != 0) {
-        syslog(LOG_ERR, "udp: setsockopt: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "udp: setsockopt: %s", strerror(errno));
         return 0;
     }
 
@@ -238,11 +238,11 @@ static int UDP_setup(void)
     myaddr.sin_port = htons(sourcePort);
 
     if (bind(sock_fd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
-        syslog(LOG_ERR, "udp: bind: %s", strerror(errno));
+        opensolo_syslog(LOG_ERR, "udp: bind: %s", strerror(errno));
         return 0;
     }
 
-    syslog(LOG_INFO, "udp: listening on port %d", sourcePort);
+    opensolo_syslog(LOG_INFO, "udp: listening on port %d", sourcePort);
     return 1;
 }
 
@@ -292,7 +292,7 @@ static void *UDP_task(void *)
     // Attach to shared packet memory
     rc_ipc_id = rc_ipc_attach(1);
     if (rc_ipc_id == NULL) {
-        syslog(LOG_ERR, "udp: can't attach to rc packet shared memory");
+        opensolo_syslog(LOG_ERR, "udp: can't attach to rc packet shared memory");
         pthread_exit(NULL);
     }
 
@@ -316,7 +316,7 @@ static void *UDP_task(void *)
             static bool logged = false;
             if (!logged) {
                 logged = true;
-                syslog(LOG_ERR, "udp: can't get udp stats");
+                opensolo_syslog(LOG_ERR, "udp: can't get udp stats");
             }
         } else {
             if (udp_rx_queue_max < udp_info.rx_queue)
@@ -357,14 +357,14 @@ static void *UDP_task(void *)
                 packetStats.max = (interval_us > packetStats.max ? interval_us : packetStats.max);
 
                 // if (interval_us > 100000)
-                //    syslog(LOG_INFO, "udp: packet interval %d usec", interval_us);
+                //    opensolo_syslog(LOG_INFO, "udp: packet interval %d usec", interval_us);
 
                 last_us = now_us;
 
                 // Check our failsafe status
                 if (timeout) {
                     // Since we got the right amount of data, we assume its OK
-                    syslog(LOG_INFO, "udp: failsafe end after %d ms", interval_us / 1000);
+                    opensolo_syslog(LOG_INFO, "udp: failsafe end after %d ms", interval_us / 1000);
                     timeout = false;
                 }
 
@@ -395,7 +395,7 @@ static void *UDP_task(void *)
                     if (rc_ipc_put(rc_ipc_id, &pkt, 1) != 0) {
                         put_err++;
                         if (now_us - put_err_time_us > 10000000) {
-                            syslog(LOG_ERR,
+                            opensolo_syslog(LOG_ERR,
                                    "udp: can't write to rc packet shared memory (count=%d)",
                                    put_err);
                             put_err_time_us = now_us;
@@ -403,14 +403,14 @@ static void *UDP_task(void *)
                     }
                     if (!is_attached_last) {
                         // just transitioned to attached
-                        syslog(LOG_INFO, "udp: attached");
+                        opensolo_syslog(LOG_INFO, "udp: attached");
                         is_attached_last = true;
                     }
                 } else {
                     // not attached, don't send it to shared memory
                     if (is_attached_last) {
                         // just transitioned to not attached
-                        syslog(LOG_INFO, "udp: detached");
+                        opensolo_syslog(LOG_INFO, "udp: detached");
                         is_attached_last = false;
                     }
                 }
@@ -432,7 +432,7 @@ static void *UDP_task(void *)
                 // kind of error happening (multiple combos of recvlen, err),
                 // not all will necessarily be logged.
                 if (now_us - recv_err_time_us > 1000000) {
-                    syslog(LOG_ERR, "udp: recv returned %d; errno=%d; recv_err=%d", recvlen, err,
+                    opensolo_syslog(LOG_ERR, "udp: recv returned %d; errno=%d; recv_err=%d", recvlen, err,
                            recv_err);
                     recv_err_time_us = now_us;
                     recv_err = 0;
@@ -459,7 +459,7 @@ static void *UDP_task(void *)
                     if (rc_ipc_put(rc_ipc_id, &pkt, 1) != 0) {
                         put_err++;
                         if (now_us - put_err_time_us > 10000000) {
-                            syslog(LOG_ERR,
+                            opensolo_syslog(LOG_ERR,
                                    "udp: can't write to rc packet shared memory (error %d)",
                                    put_err);
                             put_err_time_us = now_us;
@@ -472,13 +472,13 @@ static void *UDP_task(void *)
 
                 timeout = true;
 
-                syslog(LOG_INFO, "udp: failsafe start after %llu ms of inactivity", age_us / 1000);
+                opensolo_syslog(LOG_INFO, "udp: failsafe start after %llu ms of inactivity", age_us / 1000);
             }
         }
 
         // log time?
         if (now_us >= log_time_us) {
-            syslog(LOG_INFO, "a:%ld,m:%ld,n:%ld,u:%ld,d:%ld,o:%ld,q:%u,udp=%llu,ser=%llu",
+            opensolo_syslog(LOG_INFO, "a:%ld,m:%ld,n:%ld,u:%ld,d:%ld,o:%ld,q:%u,udp=%llu,ser=%llu",
                    (packetStats.avg + 500) / 1000, // a:
                    (packetStats.max + 500) / 1000, // m:
                    packetStats.avg_n,              // n:
@@ -523,7 +523,7 @@ static int start_UDP_thread(void)
     memset(&param, 0, sizeof(param));
     param.sched_priority = UDP_PRIORITY;
     if ((ret = pthread_setschedparam(UDP_ctx, SCHED_FIFO, &param))) {
-        syslog(LOG_ERR, "udp: pthread_setschedparam returned %d", ret);
+        opensolo_syslog(LOG_ERR, "udp: pthread_setschedparam returned %d", ret);
     }
 #endif // UDP_PRIORITY
 
@@ -662,7 +662,7 @@ static void pwmToDsmDiag(PwmToDsm *p2d)
     {
         uint16_t dsm = p2d->encode(0, pwm_in[i]);
         int pwm_out = p2d->decode(dsm);
-        syslog(LOG_INFO, "main: %4d -> 0x%04x -> %d", pwm_in[i], dsm, pwm_out);
+        opensolo_syslog(LOG_INFO, "main: %4d -> 0x%04x -> %d", pwm_in[i], dsm, pwm_out);
     }
 }
 #endif
@@ -732,7 +732,7 @@ static int serial_setup(void)
     serial_fd = open(serialPortName.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
 
     if (serial_fd < 0) {
-        syslog(LOG_ERR, "serial: can't open %s", serialPortName.c_str());
+        opensolo_syslog(LOG_ERR, "serial: can't open %s", serialPortName.c_str());
         return 0;
     }
 
@@ -805,7 +805,7 @@ static void *serial_task(void *)
     // Attach to shared packet memory
     rc_ipc_id = rc_ipc_attach(1);
     if (rc_ipc_id == NULL) {
-        syslog(LOG_ERR, "serial: can't attach to rc packet shared memory");
+        opensolo_syslog(LOG_ERR, "serial: can't attach to rc packet shared memory");
         pthread_exit(NULL);
     }
 
@@ -829,7 +829,7 @@ static void *serial_task(void *)
             // Failure to get one is probably due to corruption somewhere.
             get_err++;
             if (now_us - get_err_time_us > 10000000) {
-                syslog(LOG_ERR, "serial: can't read from rc packet shared memory (count=%d)",
+                opensolo_syslog(LOG_ERR, "serial: can't read from rc packet shared memory (count=%d)",
                        get_err);
                 get_err_time_us = now_us;
             }
@@ -867,7 +867,7 @@ static void *serial_task(void *)
             last_good_us = now_us; // used to detect failsafe timeout
             last_pkt = pkt;        // used to detect changing packet
             if (!started) {
-                syslog(LOG_INFO, "serial: started");
+                opensolo_syslog(LOG_INFO, "serial: started");
             }
             started = true;
         }
@@ -886,17 +886,17 @@ static void *serial_task(void *)
                 continue;
 
             if (write(serial_fd, dsmStr, num_bytes) != num_bytes) {
-                syslog(LOG_ERR, "serial: port write error");
+                opensolo_syslog(LOG_ERR, "serial: port write error");
             }
 
             // log failsafe start/stop at the latest possible point (here)
             if (failsafing && (dsmStr[2] != 0 || dsmStr[3] != 0)) {
                 // ending failsafe
-                syslog(LOG_INFO, "serial: failsafe end");
+                opensolo_syslog(LOG_INFO, "serial: failsafe end");
                 failsafing = false;
             } else if (!failsafing && (dsmStr[2] == 0 && dsmStr[3] == 0)) {
                 // starting failsafe
-                syslog(LOG_INFO, "serial: failsafe start");
+                opensolo_syslog(LOG_INFO, "serial: failsafe start");
                 failsafing = true;
             }
 
@@ -940,7 +940,7 @@ static int start_serial_thread(void)
     memset(&param, 0, sizeof(param));
     param.sched_priority = SERIAL_PRIORITY;
     if ((ret = pthread_setschedparam(serial_ctx, SCHED_FIFO, &param))) {
-        syslog(LOG_ERR, "serial: pthread_setschedparam returned %d", ret);
+        opensolo_syslog(LOG_ERR, "serial: pthread_setschedparam returned %d", ret);
     }
 #endif // SERIAL_PRIORITY
 
@@ -978,8 +978,8 @@ static bool thread_ok(const char *name, volatile uint64_t *thread_us, uint64_t m
     // too long since thread ran
 
     // this should be exceptional (bug indicator)
-    syslog(LOG_ERR, "%s: thread not running", name);
-    syslog(LOG_ERR, "%s: now=%llu, ran@%llu, delta=%llu", name, now_us, last_us, now_us - last_us);
+    opensolo_syslog(LOG_ERR, "%s: thread not running", name);
+    opensolo_syslog(LOG_ERR, "%s: now=%llu, ran@%llu, delta=%llu", name, now_us, last_us, now_us - last_us);
 
     return false;
 
@@ -1024,7 +1024,7 @@ static bool thread_started(const char *name, volatile uint64_t *thread_us, uint6
         return true;
 
     // this should be exceptional (bug indicator)
-    syslog(LOG_ERR, "%s: thread failed to start", name);
+    opensolo_syslog(LOG_ERR, "%s: thread failed to start", name);
 
     return false;
 
@@ -1040,9 +1040,9 @@ int main(void)
 {
     string ipstr;
 
-    openlog("pixrc", LOG_NDELAY, LOG_LOCAL0);
+    opensolo_openlog("pixrc", LOG_NDELAY, LOG_LOCAL0);
 
-    syslog(LOG_INFO, "main: built " __DATE__ " " __TIME__);
+    opensolo_syslog(LOG_INFO, "main: built " __DATE__ " " __TIME__);
 
     /* Parse the sololink.conf file for serial port, source IPs and ports */
     INIReader reader("/etc/sololink.conf");
@@ -1086,24 +1086,24 @@ int main(void)
     pwmToDsmThrottle = new (std::nothrow)
         PwmToDsm(pwmInMinThrottle, pwmInMaxThrottle, pwmOutMinThrottle, pwmOutMaxThrottle);
     if (pwmToDsmThrottle == NULL) {
-        syslog(LOG_ERR, "main: can't create pwmToDsmThrottle");
+        opensolo_syslog(LOG_ERR, "main: can't create pwmToDsmThrottle");
         return -1;
     }
     pwmToDsmOther =
         new (std::nothrow) PwmToDsm(pwmInMinOther, pwmInMaxOther, pwmOutMinOther, pwmOutMaxOther);
     if (pwmToDsmOther == NULL) {
-        syslog(LOG_ERR, "main: can't create pwmToDsmOther");
+        opensolo_syslog(LOG_ERR, "main: can't create pwmToDsmOther");
         return -1;
     }
 
-    syslog(LOG_INFO, "main: rcSourceIps: %s", rcSourceIps.c_str());
-    syslog(LOG_INFO, "main: rcDestPort:  %d", sourcePort);
-    syslog(LOG_INFO, "main: rcDsmDev:    %s", serialPortName.c_str());
-    syslog(LOG_INFO, "main: Throttle PWM in  %4d...%4d", pwmInMinThrottle, pwmInMaxThrottle);
-    syslog(LOG_INFO, "main:          PWM out %4d...%4d", pwmOutMinThrottle, pwmOutMaxThrottle);
+    opensolo_syslog(LOG_INFO, "main: rcSourceIps: %s", rcSourceIps.c_str());
+    opensolo_syslog(LOG_INFO, "main: rcDestPort:  %d", sourcePort);
+    opensolo_syslog(LOG_INFO, "main: rcDsmDev:    %s", serialPortName.c_str());
+    opensolo_syslog(LOG_INFO, "main: Throttle PWM in  %4d...%4d", pwmInMinThrottle, pwmInMaxThrottle);
+    opensolo_syslog(LOG_INFO, "main:          PWM out %4d...%4d", pwmOutMinThrottle, pwmOutMaxThrottle);
     // pwmToDsmDiag(pwmToDsmThrottle);
-    syslog(LOG_INFO, "main: Other    PWM in  %4d...%4d", pwmInMinOther, pwmInMaxOther);
-    syslog(LOG_INFO, "main:          PWM out %4d...%4d", pwmOutMinOther, pwmOutMaxOther);
+    opensolo_syslog(LOG_INFO, "main: Other    PWM in  %4d...%4d", pwmInMinOther, pwmInMaxOther);
+    opensolo_syslog(LOG_INFO, "main:          PWM out %4d...%4d", pwmOutMinOther, pwmOutMaxOther);
     // pwmToDsmDiag(pwmToDsmOther);
 
     /* Set up the UDP and serial ports */

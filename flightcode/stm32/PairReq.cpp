@@ -1,6 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <string.h>
 #include "PairReq.h"
 
@@ -14,14 +14,14 @@ int PairReq::upHandler(char serBuf[], int len)
 {
     int nBytes;
 
-    syslog(LOG_INFO, "pair confirm going up for \"%s\"", serBuf);
+    opensolo_syslog(LOG_INFO, "pair confirm going up for \"%s\"", serBuf);
 
     nBytes = strlen(serBuf) + 1;
 
     nBytes = sendto(_sock_fd, serBuf, nBytes, 0, (struct sockaddr *)&_sock, sizeof(_sock));
 
     if (nBytes == -1) {
-        syslog(LOG_ERR, "PairReq: sendto failed");
+        opensolo_syslog(LOG_ERR, "PairReq: sendto failed");
         nBytes = 0;
     }
 

@@ -15,7 +15,7 @@ INCS = -I../util
 
 CFLAGS += -Wall $(INCS)
 
-SRCS_C = main.c arp_table.c util.c
+SRCS_C = main.c arp_table.c util.c syslog.c
 
 OBJS = $(SRCS_C:.c=.o)
 

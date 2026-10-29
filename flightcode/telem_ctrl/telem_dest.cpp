@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <stdint.h>
 #include <string.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <unistd.h>
 #include "telem_dest.h"
 
@@ -28,10 +28,10 @@ void telem_dest_table::dump(int priority) const
 {
     int i;
 
-    syslog(priority, "telem_dest_table::dump: num_dest=%d", num_dest);
+    opensolo_syslog(priority, "telem_dest_table::dump: num_dest=%d", num_dest);
     for (i = 0; i < DEST_MAX; i++) {
         const uint8_t *mac = dest[i].mac;
-        syslog(priority, "%s:%d %d %u %02x:%02x:%02x:%02x:%02x:%02x %d",
+        opensolo_syslog(priority, "%s:%d %d %u %02x:%02x:%02x:%02x:%02x:%02x %d",
                inet_ntoa(dest[i].sa.sin_addr), ntohs(dest[i].sa.sin_port), dest[i].fd,
                dest[i].err_cnt, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], dest[i].format);
     }
@@ -75,7 +75,7 @@ void telem_dest_table::check(void) const
 
     // dump if corrupt
     if (corrupt) {
-        syslog(LOG_CRIT, "telem dest table is corrupt");
+        opensolo_syslog(LOG_CRIT, "telem dest table is corrupt");
         dump(LOG_CRIT);
     }
 

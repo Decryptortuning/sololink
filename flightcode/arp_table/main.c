@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "arp_table.h"
+#include "opensolo_log.h"
 
 #define MAX_ARP_ENTRIES 10
 arp_entry_t arp_table[MAX_ARP_ENTRIES];
@@ -13,9 +14,11 @@ int main(int argc, char *argv[])
     int arp_entries;
     int i;
 
+    opensolo_openlog("arp_table", LOG_NDELAY, LOG_USER);
     arp_entries = MAX_ARP_ENTRIES;
     if (arp_table_get(arp_table, &arp_entries) != 0) {
         printf("ERROR reading arp table\n");
+        opensolo_closelog();
         exit(1);
     }
 
@@ -28,6 +31,7 @@ int main(int argc, char *argv[])
                mac[5], arp_table[i].dev);
     }
 
+    opensolo_closelog();
     exit(0);
 
 } /* main */

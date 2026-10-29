@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -140,7 +140,7 @@ static void lock_thread_mem(uint32_t memsize)
     uint8_t stackmem[memsize];
 
     if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
-        syslog(LOG_CRIT, "STM32 memory locking failed: %s; real-time residency is not guaranteed", strerror(errno));
+        opensolo_syslog(LOG_CRIT, "STM32 memory locking failed: %s; real-time residency is not guaranteed", strerror(errno));
     }
 
     memset(stackmem, 0, sizeof(stackmem));
@@ -160,7 +160,7 @@ int serial_setup(int baudrate)
     serial_fd = open(serialPortName.c_str(), O_RDWR | O_NOCTTY); // Blocking read
 
     if (serial_fd < 0) {
-        syslog(LOG_ERR, "unable to open serial port %s", serialPortName.c_str());
+        opensolo_syslog(LOG_ERR, "unable to open serial port %s", serialPortName.c_str());
         return 0;
     }
 
@@ -177,7 +177,7 @@ int serial_setup(int baudrate)
         cfsetspeed(&options, B1500000);
         break;
     default:
-        syslog(LOG_ERR, "unsupported baudrate %d", baudrate);
+        opensolo_syslog(LOG_ERR, "unsupported baudrate %d", baudrate);
         return 0;
     }
     options.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP | IXON);
@@ -190,7 +190,7 @@ int serial_setup(int baudrate)
 
     tcsetattr(serial_fd, TCSANOW, &options); // Set the new options for the port "NOW"
 
-    syslog(LOG_INFO, "opened serial port %s", serialPortName.c_str());
+    opensolo_syslog(LOG_INFO, "opened serial port %s", serialPortName.c_str());
 
     return 1;
 }
@@ -263,7 +263,7 @@ void *upstream_task(void *)
                     msgLen = slipDec->addByte(&buf[i]);
                     if (msgLen <= 0) {
                         if (msgLen < 0) {
-                            syslog(LOG_INFO, "slip error - discarding data");
+                            opensolo_syslog(LOG_INFO, "slip error - discarding data");
                             in_sync = false;
                         }
                         continue;
@@ -275,7 +275,7 @@ void *upstream_task(void *)
                         // packet's sync. But at this point, we *did* just
                         // receive a sync, so we drop the current packet and
                         // go get the next one.
-                        syslog(LOG_INFO, "slip - initial sync");
+                        opensolo_syslog(LOG_INFO, "slip - initial sync");
                         in_sync = true;
                         continue;
                     }
@@ -286,7 +286,7 @@ void *upstream_task(void *)
                     serialLog->log_packet(msg, msgLen, SerialLog::PKTFLG_UP);
 #endif // INCLUDE_SERIAL_LOG
 
-                    // syslog(LOG_INFO, "packet %d: %d bytes", int(msg[0]), msgLen);
+                    // opensolo_syslog(LOG_INFO, "packet %d: %d bytes", int(msg[0]), msgLen);
 
                     // Get the packet type from the first byte
                     // When passing the message, skip the first byte
@@ -313,7 +313,7 @@ void *upstream_task(void *)
                         break;
                     case PKT_ID_SHUTDOWN_REQUEST:
                         // Call the system shutdown command
-                        syslog(LOG_INFO, "STM32 requested shutdown");
+                        opensolo_syslog(LOG_INFO, "STM32 requested shutdown");
                         system("shutdown -h now");
                         sleep(30); // should get killed in here
                         exit(1);   // init may restart us if we get here
@@ -328,7 +328,7 @@ void *upstream_task(void *)
                         // polluting log - print one then ignore
                         if (!invalid_stick_inputs_logged) {
                             string s = msgToString(msg, msgLen);
-                            syslog(LOG_INFO, "received invalid stick inputs message: %s",
+                            opensolo_syslog(LOG_INFO, "received invalid stick inputs message: %s",
                                    s.c_str());
                             invalid_stick_inputs_logged = true;
                         }
@@ -342,9 +342,9 @@ void *upstream_task(void *)
                         if (now_us >= unknown_us) {
                             // okay to print it
                             string s = msgToString(msg, msgLen);
-                            syslog(LOG_ERR, "unknown packet: %s", s.c_str());
+                            opensolo_syslog(LOG_ERR, "unknown packet: %s", s.c_str());
                             if (unknown_skip_cnt != 0) {
-                                syslog(LOG_ERR, "(%u more not printed)", unknown_skip_cnt);
+                                opensolo_syslog(LOG_ERR, "(%u more not printed)", unknown_skip_cnt);
                                 unknown_skip_cnt = 0;
                             }
                             // don't print another for 1,000,000 usec
@@ -366,7 +366,7 @@ void *upstream_task(void *)
             }
         } else if (pollrc == 0) {
             // timeout
-            syslog(LOG_INFO, "no data received from STM32 for %d msec", POLLTIMEOUT_MS);
+            opensolo_syslog(LOG_INFO, "no data received from STM32 for %d msec", POLLTIMEOUT_MS);
         }
 
     } // while (true)
@@ -392,7 +392,7 @@ int start_upstream_thread(void)
     // upstream priority and schedule
     param.sched_priority = UPSTREAM_PRIORITY;
     if ((ret = pthread_setschedparam(upstream_ctx, SCHED_FIFO, &param)))
-        syslog(LOG_ERR, "error %d setting upstream thread priority", ret);
+        opensolo_syslog(LOG_ERR, "error %d setting upstream thread priority", ret);
 
     return ret;
 }
@@ -497,13 +497,13 @@ void *downstream_task(void *)
 
             if (FD_ISSET(pairReq->getfd(), &fds)) {
                 // Don't increment the amount of data we send here
-                syslog(LOG_INFO, "pair request going down");
+                opensolo_syslog(LOG_INFO, "pair request going down");
                 pairReq->downHandler(serial_fd, dbg_downHandler);
             }
 
             if (FD_ISSET(pairRes->getfd(), &fds)) {
                 // Don't increment the amount of data we send here
-                syslog(LOG_INFO, "pair result going down");
+                opensolo_syslog(LOG_INFO, "pair result going down");
                 pairRes->downHandler(serial_fd, dbg_downHandler);
             }
 
@@ -532,19 +532,19 @@ void *downstream_task(void *)
 
             if (FD_ISSET(updater->getfd(), &fds)) {
                 // Don't increment the amount of data we send here
-                syslog(LOG_INFO, "updater message going down");
+                opensolo_syslog(LOG_INFO, "updater message going down");
                 updater->downHandler(serial_fd, dbg_downHandler);
             }
 
             if (FD_ISSET(lockoutState->getfd(), &fds)) {
                 // Don't increment the amount of data we send here
-                syslog(LOG_INFO, "lockout state message going down");
+                opensolo_syslog(LOG_INFO, "lockout state message going down");
                 lockoutState->downHandler(serial_fd, dbg_downHandler);
             }
 
             if (FD_ISSET(appConn->getfd(), &fds)) {
                 // Don't increment the amount of data we send here
-                syslog(LOG_INFO, "app connected message going down");
+                opensolo_syslog(LOG_INFO, "app connected message going down");
                 appConn->downHandler(serial_fd, dbg_downHandler);
             }
         }
@@ -579,7 +579,7 @@ void *downstream_task(void *)
                 }
             }
 
-            syslog(LOG_INFO, "up %s%u B %0.2f KB/s dn %u B %0.2f KB/s", msg, newUpBytes,
+            opensolo_syslog(LOG_INFO, "up %s%u B %0.2f KB/s dn %u B %0.2f KB/s", msg, newUpBytes,
                    newUpBytes / 1024.0 / (delta / 1e6), downBytes,
                    downBytes / 1024.0 / (delta / 1e6));
 
@@ -609,7 +609,7 @@ int start_downstream_thread(void)
     memset(&param, 0, sizeof(param));
     param.sched_priority = DOWNSTREAM_PRIORITY;
     if ((ret = pthread_setschedparam(downstream_ctx, SCHED_FIFO, &param)))
-        syslog(LOG_ERR, "error %d setting downstream thread priority", ret);
+        opensolo_syslog(LOG_ERR, "error %d setting downstream thread priority", ret);
 
     return ret;
 }
@@ -668,15 +668,15 @@ int main(void)
     string soloIPAddr;
     bool haveSoloIP = false;
 
-    openlog("stm32", LOG_NDELAY, LOG_LOCAL0);
+    opensolo_openlog("stm32", LOG_NDELAY, LOG_LOCAL0);
 
-    syslog(LOG_INFO, "main: starting: built " __DATE__ " " __TIME__);
+    opensolo_syslog(LOG_INFO, "main: starting: built " __DATE__ " " __TIME__);
 
     /* Parse the sololink.conf file for serial port, source IPs and ports */
     INIReader reader("/etc/sololink.conf");
 
     if (reader.ParseError() < 0) {
-        syslog(LOG_ERR, "main: can't load /etc/sololink.conf");
+        opensolo_syslog(LOG_ERR, "main: can't load /etc/sololink.conf");
         return -1;
     }
 
@@ -693,12 +693,12 @@ int main(void)
     setTelemUnitsDestPort = reader.GetInteger("solo", "setTelemUnitsDestPort", 5024);
     setTelemUnitsSetting = reader.Get("solo", "uiUnits", "metric");
     telemLogGap = reader.GetInteger("solo", "telemLogGap", 1000000);
-    syslog(LOG_INFO, "logging telemetry gaps >= %d msec", (telemLogGap + 500) / 1000);
+    opensolo_syslog(LOG_INFO, "logging telemetry gaps >= %d msec", (telemLogGap + 500) / 1000);
     telemLogDelayMax =
         reader.GetInteger("solo", "telemLogDelayMax", 100000); // 100,000 is ~20 minutes, 6.4 MB
     telemLogDelayFile = reader.Get("solo", "telemLogDelayFile", "");
     if (telemLogDelayFile != "")
-        syslog(LOG_INFO, "main: logging packet delays to %s (%d records per file)",
+        opensolo_syslog(LOG_INFO, "main: logging packet delays to %s (%d records per file)",
                telemLogDelayFile.c_str(), telemLogDelayMax);
     configSweepTimeDestPort = reader.GetInteger("solo", "configSweepTimeDestPort", 5022);
     btnEvtDestPort = reader.GetInteger("solo", "buttonEventDestPort", 5016);
@@ -711,7 +711,7 @@ int main(void)
     baudrate = reader.GetInteger("solo", "stm32Baud", 115200);
     dbg_downHandler = reader.GetInteger("solo", "dbg_downHandler", 0);
     if (dbg_downHandler != 0)
-        syslog(LOG_INFO, "main: dbg_downHandler=0x%08x", dbg_downHandler);
+        opensolo_syslog(LOG_INFO, "main: dbg_downHandler=0x%08x", dbg_downHandler);
 
 #ifdef INCLUDE_SERIAL_LOG
     // serial log
@@ -723,7 +723,7 @@ int main(void)
 
     // shared variable mutex
     if (mutex_init(&mutex_upBytes) != 0) {
-        syslog(LOG_ERR, "main: can't initialize mutex");
+        opensolo_syslog(LOG_ERR, "main: can't initialize mutex");
         return -1;
     }
 
@@ -750,7 +750,7 @@ int main(void)
 
     /* Start the serial port */
     if (!serial_setup(baudrate)) {
-        syslog(LOG_ERR, "main: unable to initialize serial port");
+        opensolo_syslog(LOG_ERR, "main: unable to initialize serial port");
         return -1;
     }
 
@@ -769,7 +769,7 @@ int main(void)
     // We also check to see if the solo IP address has been written yet
     while (true) {
         if (pthread_kill(upstream_ctx, 0) != 0 || pthread_kill(downstream_ctx, 0) != 0) {
-            syslog(LOG_ERR, "a thread is not running, exiting");
+            opensolo_syslog(LOG_ERR, "a thread is not running, exiting");
             exit(0);
         }
 
@@ -777,7 +777,7 @@ int main(void)
         if (!haveSoloIP) {
             haveSoloIP = readSoloIP("/var/run/solo.ip", &soloIPAddr);
             if (haveSoloIP) {
-                syslog(LOG_INFO, "got solo ip: %s", soloIPAddr.c_str());
+                opensolo_syslog(LOG_INFO, "got solo ip: %s", soloIPAddr.c_str());
                 rc->setSoloIP(&soloIPAddr);
             }
         }

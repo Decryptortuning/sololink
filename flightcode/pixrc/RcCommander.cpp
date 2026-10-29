@@ -1,5 +1,5 @@
 
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <errno.h>
 #include <unistd.h>
 #include <stddef.h>
@@ -32,9 +32,9 @@ void RcCommander::handle_attach(const struct sockaddr *src_addr, socklen_t src_a
         uplink_attached = attach;
 
         if (uplink_attached)
-            syslog(LOG_INFO, "cmd: uplink attached");
+            opensolo_syslog(LOG_INFO, "cmd: uplink attached");
         else
-            syslog(LOG_INFO, "cmd: uplink detached");
+            opensolo_syslog(LOG_INFO, "cmd: uplink detached");
 
         send_response(src_addr, src_addr_len, "OK\n");
     }

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <arpa/inet.h>
 #include "Telem.h"
 #include "SerialLog.h"
@@ -42,7 +42,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
     // a select()
     recvlen = recvfrom(_sock_fd, &packet, sizeof(packet), 0, (struct sockaddr *)&_sock, &addrlen);
     if (recvlen < 0) {
-        syslog(LOG_ERR, "telem: recvfrom failed");
+        opensolo_syslog(LOG_ERR, "telem: recvfrom failed");
         return;
     }
     if (recvlen == 0)
@@ -54,7 +54,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
     if (last_stm_recv_us != 0) {
         unsigned gap_us = packet.stm_recv_us - last_stm_recv_us;
         if (gap_us >= _log_gap_us)
-            syslog(LOG_INFO, "telem gap %u msec", (gap_us + 500) / 1000);
+            opensolo_syslog(LOG_INFO, "telem gap %u msec", (gap_us + 500) / 1000);
     }
     last_stm_recv_us = packet.stm_recv_us;
 
@@ -72,19 +72,19 @@ void Telem::downHandler(int ser_fd, int verbosity)
 
         // We access up to p_payload[5] and expect at least the MAVLink v1 header+CRC.
         if (available < 8) {
-            syslog(LOG_ERR, "telem: short mavlink frame (%lu bytes)", (unsigned long)available);
+            opensolo_syslog(LOG_ERR, "telem: short mavlink frame (%lu bytes)", (unsigned long)available);
             break;
         }
 
         /* Make sure this is a mavlink packet */
         if (p_payload[0] != 0xFE) {
-            syslog(LOG_ERR, "pkt: Got a bad mavlink packet in the LinkPacket");
+            opensolo_syslog(LOG_ERR, "pkt: Got a bad mavlink packet in the LinkPacket");
             break;
         }
 
         unsigned mavLen = p_payload[1] + 8;
         if (available < (size_t)mavLen) {
-            syslog(LOG_ERR, "telem: truncated mavlink frame (%lu bytes available, %u needed)",
+            opensolo_syslog(LOG_ERR, "telem: truncated mavlink frame (%lu bytes available, %u needed)",
                    (unsigned long)available, mavLen);
             break;
         }
@@ -102,7 +102,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
         b[0] = _pktID;
         encodedLen = slipEnc->encode(b, mavLen + 1);
         if (encodedLen < 0) {
-            syslog(LOG_ERR, "telem: slip encode error (len=%u)", mavLen + 1);
+            opensolo_syslog(LOG_ERR, "telem: slip encode error (len=%u)", mavLen + 1);
             goto move_on;
         }
 
@@ -113,7 +113,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
 #endif // INCLUDE_SERIAL_LOG
 
         if (write(ser_fd, msg, encodedLen) != encodedLen)
-            syslog(LOG_ERR, "pkt: error writing to serial port");
+            opensolo_syslog(LOG_ERR, "pkt: error writing to serial port");
     move_on:
         p_payload += mavLen;
     }

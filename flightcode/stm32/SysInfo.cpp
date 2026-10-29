@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <arpa/inet.h>
 #include "SysInfo.h"
 #include "packetTypes.h"
@@ -35,7 +35,7 @@ int SysInfo::upHandler(char serBuf[], int len)
 
     if (len < 14)
     {
-        syslog(LOG_ERR, "sys: message too short (%d)", len);
+        opensolo_syslog(LOG_ERR, "sys: message too short (%d)", len);
         return 0;
     }
 
@@ -56,10 +56,10 @@ int SysInfo::upHandler(char serBuf[], int len)
         snprintf(uid, sizeof(uid), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
                  uniqueId[0], uniqueId[1], uniqueId[2], uniqueId[3], uniqueId[4], uniqueId[5],
                  uniqueId[6], uniqueId[7], uniqueId[8], uniqueId[9], uniqueId[10], uniqueId[11]);
-        syslog(LOG_INFO, "sys: unique id: %s", uid);
-        syslog(LOG_INFO, "sys: hardware ver: %u", hardwareVersion);
-        syslog(LOG_INFO, "sys: software ver: %s", version);
-        syslog(LOG_INFO, "sys: (try %u)", pingCount);
+        opensolo_syslog(LOG_INFO, "sys: unique id: %s", uid);
+        opensolo_syslog(LOG_INFO, "sys: hardware ver: %u", hardwareVersion);
+        opensolo_syslog(LOG_INFO, "sys: software ver: %s", version);
+        opensolo_syslog(LOG_INFO, "sys: (try %u)", pingCount);
         infoLogged = true;
     }
 

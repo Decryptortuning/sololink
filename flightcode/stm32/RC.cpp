@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <time.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -125,7 +125,7 @@ int RC::upHandler(char serBuf[], int len)
             p += n;
             m -= n;
         }
-        syslog(LOG_ERR, "bad RC packet (len=%d): %s", len, buf);
+        opensolo_syslog(LOG_ERR, "bad RC packet (len=%d): %s", len, buf);
         return 0;
     }
 
@@ -141,7 +141,7 @@ int RC::upHandler(char serBuf[], int len)
         // Log the error and the number of failures we've seen
         now_us = clock_gettime_us(CLOCK_MONOTONIC);
         if (now_us - last_logerr_us > SENDTO_LOG_DT_US) {
-            syslog(LOG_ERR, "RC send failed (%i): %s\n", n_sendto_errs, strerror(errno));
+            opensolo_syslog(LOG_ERR, "RC send failed (%i): %s\n", n_sendto_errs, strerror(errno));
             last_logerr_us = now_us;
             n_sendto_errs = 0;
         }

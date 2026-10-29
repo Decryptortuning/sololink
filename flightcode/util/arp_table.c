@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -157,13 +157,13 @@ void arp_table_dump(int priority, const arp_entry_t *arp_table, int arp_entries)
 {
     int i;
 
-    syslog(priority, "arp_table:");
+    opensolo_syslog(priority, "arp_table:");
 
     for (i = 0; i < arp_entries; i++) {
         struct in_addr in;
         in.s_addr = arp_table[i].ip;
         const uint8_t *mac = arp_table[i].mac;
-        syslog(priority, "%-15s 0x%x 0x%x %02x:%02x:%02x:%02x:%02x:%02x %s\n", inet_ntoa(in),
+        opensolo_syslog(priority, "%-15s 0x%x 0x%x %02x:%02x:%02x:%02x:%02x:%02x %s\n", inet_ntoa(in),
                arp_table[i].hw_type, arp_table[i].flags, mac[0], mac[1], mac[2], mac[3], mac[4],
                mac[5], arp_table[i].dev);
     }

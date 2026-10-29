@@ -12,7 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
+#include "opensolo_log.h"
+#include "time_owner.h"
 #include <unistd.h>
 #include "INIReader.h"
 #include "arp_table.h"
@@ -138,9 +139,9 @@ static void wait_solo(in_addr_t *solo_addr)
             *solo_addr = inet_addr(buf);
             if (*solo_addr != htonl(INADDR_NONE))
                 return;
-            syslog(LOG_ERR, "converting \"%s\" to ip address", buf);
+            opensolo_syslog(LOG_ERR, "converting \"%s\" to ip address", buf);
         } else {
-            syslog(LOG_ERR, "reading %s: %s", solo_ip_file, strerror(err));
+            opensolo_syslog(LOG_ERR, "reading %s: %s", solo_ip_file, strerror(err));
         }
         /* loop around and try again, probably futile */
         sleep(1);
@@ -194,7 +195,7 @@ static int update_telem_dest(void *hostapd_handle)
     memset(arp_table, 0, sizeof(arp_table));
     arp_entries = ARP_ENTRIES_MAX;
     if (arp_table_get(arp_table, &arp_entries) != 0) {
-        syslog(LOG_ERR, "ERROR reading arp table");
+        opensolo_syslog(LOG_ERR, "ERROR reading arp table");
         return -1;
     }
 
@@ -202,7 +203,7 @@ static int update_telem_dest(void *hostapd_handle)
     memset(hostapd_table, 0, sizeof(hostapd_table));
     hostapd_entries = HOSTAPD_ENTRIES_MAX;
     if (hostapd_ctrl_get_stations(hostapd_handle, hostapd_table, &hostapd_entries) != 0) {
-        syslog(LOG_ERR, "ERROR getting station info");
+        opensolo_syslog(LOG_ERR, "ERROR getting station info");
         return -1;
     }
 
@@ -223,27 +224,27 @@ static int update_telem_dest(void *hostapd_handle)
         if (s == -1) {
             struct in_addr in;
             in.s_addr = arp_table[i].ip;
-            syslog(LOG_DEBUG, "arp entry %d is not a known telem dest", i);
+            opensolo_syslog(LOG_DEBUG, "arp entry %d is not a known telem dest", i);
             if (in.s_addr == sa_solo.sin_addr.s_addr) {
-                syslog(LOG_DEBUG, "skipping telem dest at %s (solo)", inet_ntoa(in));
+                opensolo_syslog(LOG_DEBUG, "skipping telem dest at %s (solo)", inet_ntoa(in));
             } else if (arp_table[i].flags == 0) {
-                syslog(LOG_DEBUG, "skipping telem dest at %s (flags=0)", inet_ntoa(in));
+                opensolo_syslog(LOG_DEBUG, "skipping telem dest at %s (flags=0)", inet_ntoa(in));
             } else {
-                syslog(LOG_INFO, "adding telem dest @ %s:%d", inet_ntoa(in), telem_dest_port_hbo);
+                opensolo_syslog(LOG_INFO, "adding telem dest @ %s:%d", inet_ntoa(in), telem_dest_port_hbo);
                 work_table.add(arp_table[i].mac, arp_table[i].ip, telem_dest_port_hbo, gcs_tos);
             }
         } else {
-            syslog(LOG_DEBUG, "arp entry %d is telem dest %d", i, s);
+            opensolo_syslog(LOG_DEBUG, "arp entry %d is telem dest %d", i, s);
         }
     }
 
     /* for each telem dest, if its mac is not in hostapd's list and its ip is not in the arp table,
      * remove it */
-    syslog(LOG_DEBUG, "%d telemetry destinations", work_table.num_dest);
+    opensolo_syslog(LOG_DEBUG, "%d telemetry destinations", work_table.num_dest);
     for (i = 0; i < work_table.num_dest; i++) {
         /* don't mess with destinations on localhost */
         if (work_table.dest[i].sa.sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
-            syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is local", i,
+            opensolo_syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is local", i,
                    inet_ntoa(work_table.dest[i].sa.sin_addr),
                    ntohs(work_table.dest[i].sa.sin_port));
             continue;
@@ -251,7 +252,7 @@ static int update_telem_dest(void *hostapd_handle)
         /* in hostapd's list? */
         if (hostapd_ctrl_find_by_mac(hostapd_table, hostapd_entries, work_table.dest[i].mac) !=
             -1) {
-            syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is associated", i,
+            opensolo_syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is associated", i,
                    inet_ntoa(work_table.dest[i].sa.sin_addr),
                    ntohs(work_table.dest[i].sa.sin_port));
             continue;
@@ -259,15 +260,15 @@ static int update_telem_dest(void *hostapd_handle)
         /* in arp table? */
         if (arp_table_find_by_ip(arp_table, arp_entries, work_table.dest[i].sa.sin_addr.s_addr) !=
             -1) {
-            syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is in the arp table", i,
+            opensolo_syslog(LOG_DEBUG, "work_table.dest[%d] (%s:%d) is in the arp table", i,
                    inet_ntoa(work_table.dest[i].sa.sin_addr),
                    ntohs(work_table.dest[i].sa.sin_port));
             continue;
         }
         /* work_table.dest[i] is not  associated with hostapd, and is not in arp table;
            delete it */
-        syslog(LOG_DEBUG, "work_table.dest[%d] is neither associated nor in arp table", i);
-        syslog(LOG_INFO, "deleting telem dest at %s", inet_ntoa(work_table.dest[i].sa.sin_addr));
+        opensolo_syslog(LOG_DEBUG, "work_table.dest[%d] is neither associated nor in arp table", i);
+        opensolo_syslog(LOG_INFO, "deleting telem dest at %s", inet_ntoa(work_table.dest[i].sa.sin_addr));
         work_table.delete_by_index(i);
         i--; /* the next entry is at [i] now */
     }
@@ -457,7 +458,7 @@ static void *tlm_main(void *)
     /* Solo socket. This is where downlink packets arrive. */
     fd_solo = create_and_bind(telem_dest_port_hbo, uplink_tos);
     if (fd_solo < 0) {
-        syslog(LOG_CRIT, "can't create solo socket and bind to port %d", telem_dest_port_hbo);
+        opensolo_syslog(LOG_CRIT, "can't create solo socket and bind to port %d", telem_dest_port_hbo);
         return NULL;
     }
 
@@ -513,7 +514,7 @@ static void *tlm_main(void *)
            loop N+1 should be very short. 100 msec should be far far longer
            than we need; we are looking for unexpected blocks or stalls here. */
         if ((t1_us - now_us) > 100000) {
-            syslog(LOG_ERR, "loop: took %u usec", (unsigned)(t1_us - now_us));
+            opensolo_syslog(LOG_ERR, "loop: took %u usec", (unsigned)(t1_us - now_us));
         }
 
         /* This select is intended to be the only place this thread blocks, so
@@ -531,12 +532,12 @@ static void *tlm_main(void *)
         /* select should time out in 200 msec at the most; warn if it blocks
            longer than that */
         if ((now_us - t1_us) > 250000)
-            syslog(LOG_ERR, "select: blocked %u usec", (unsigned)(now_us - t1_us));
+            opensolo_syslog(LOG_ERR, "select: blocked %u usec", (unsigned)(now_us - t1_us));
 
         if (res < 0) {
             int skipped;
             if ((skipped = can_log_error(now_us)) >= 0)
-                syslog(LOG_ERR, "[%u] select: %s", skipped, strerror(errno));
+                opensolo_syslog(LOG_ERR, "[%u] select: %s", skipped, strerror(errno));
             /* this sleep is to avoid soaking the CPU if select starts
                returning immediately for some reason */
             usleep(10000);
@@ -568,7 +569,7 @@ static void *tlm_main(void *)
             t2_us = clock_gettime_us(CLOCK_MONOTONIC);
             /* recvfrom should not block; warn if it does */
             if ((t2_us - t1_us) > 10000)
-                syslog(LOG_ERR, "recvfrom(solo): blocked %u usec", (unsigned)(t2_us - t1_us));
+                opensolo_syslog(LOG_ERR, "recvfrom(solo): blocked %u usec", (unsigned)(t2_us - t1_us));
 
             packet.tc_recv_us = now_us; // timestamp when it was received in controller
 
@@ -584,7 +585,7 @@ static void *tlm_main(void *)
 
             // Should we log? Yes, if we have seen drops and have not logged too recently.
             if ((dropped_total > 0) && ((now_us - dropped_log_us) >= dropped_log_interval_us)) {
-                syslog(LOG_ERR, "dropped %u downlink packets", dropped_total);
+                opensolo_syslog(LOG_ERR, "dropped %u downlink packets", dropped_total);
                 dropped_total = 0;
                 dropped_log_us = now_us;
             }
@@ -599,23 +600,23 @@ static void *tlm_main(void *)
             if (sa.sin_addr.s_addr != sa_solo.sin_addr.s_addr) {
                 int skipped;
                 if ((skipped = can_log_error(now_us)) >= 0)
-                    syslog(LOG_ERR, "[%u] received packet not from solo (0x%08x)", skipped,
+                    opensolo_syslog(LOG_ERR, "[%u] received packet not from solo (0x%08x)", skipped,
                            sa.sin_addr.s_addr);
             } else if (res < (LinkPacket::HDR_LEN + 8)) {
                 int skipped;
                 if ((skipped = can_log_error(now_us)) >= 0)
-                    syslog(LOG_ERR, "[%u] received runt packet (%d bytes)", skipped, res);
+                    opensolo_syslog(LOG_ERR, "[%u] received runt packet (%d bytes)", skipped, res);
             } else if (packet.payload[0] != 254) {
                 int skipped;
                 if ((skipped = can_log_error(now_us)) >= 0)
-                    syslog(LOG_ERR, "[%u] received bad magic (0x%02x)", skipped, packet.payload[0]);
+                    opensolo_syslog(LOG_ERR, "[%u] received bad magic (0x%02x)", skipped, packet.payload[0]);
             }
             /*
             else if (packet.payload[1] != (res - LinkPacket::HDR_LEN - 8))
             {
                 int skipped;
                 if ((skipped = can_log_error(now_us)) >= 0)
-                    syslog(LOG_ERR, "[%u] inconsistent length (%u, %u)",
+                    opensolo_syslog(LOG_ERR, "[%u] inconsistent length (%u, %u)",
                            skipped, packet.payload[1], res);
             }
             */
@@ -641,11 +642,19 @@ static void *tlm_main(void *)
                             time_us = time_us * 256 + p_payload[b];
                         if (time_us != 0) {
                             char buf[32];
-                            syslog(LOG_INFO, "gps time %s", clock_tostr_r(time_us, buf));
-                            got_gps_time = 1;
-                            if (use_gps_time) {
+                            opensolo_syslog(LOG_INFO, "gps time %s", clock_tostr_r(time_us, buf));
+                            if (!use_gps_time) {
+                                got_gps_time = 1;
+                            } else if (opensolo_gps_may_step()) {
                                 clock_settime_us(CLOCK_REALTIME, time_us);
-                                syslog(LOG_INFO, "system time set from gps time");
+                                got_gps_time = 1;
+                                opensolo_syslog(LOG_INFO, "system time set from gps time");
+                            } else {
+                                static bool warned = false;
+                                if (!warned) {
+                                    opensolo_syslog(LOG_WARNING, "GPS clock step deferred: network time owner remains active");
+                                    warned = true;
+                                }
                             }
                         }
                     }
@@ -656,11 +665,11 @@ static void *tlm_main(void *)
                 /* check source port */
                 if (sa_solo.sin_port == 0) {
                     sa_solo.sin_port = sa.sin_port;
-                    syslog(LOG_INFO, "solo @ %s:%d", inet_ntoa(sa_solo.sin_addr),
+                    opensolo_syslog(LOG_INFO, "solo @ %s:%d", inet_ntoa(sa_solo.sin_addr),
                            ntohs(sa_solo.sin_port));
                 } else if (sa_solo.sin_port != sa.sin_port) {
                     sa_solo.sin_port = sa.sin_port;
-                    syslog(LOG_INFO, "solo is now at %s:%d", inet_ntoa(sa_solo.sin_addr),
+                    opensolo_syslog(LOG_INFO, "solo is now at %s:%d", inet_ntoa(sa_solo.sin_addr),
                            ntohs(sa_solo.sin_port));
                 }
 
@@ -673,7 +682,7 @@ static void *tlm_main(void *)
                 /* mutex_lock should not take longer than the memcpy in
                    update_telem_dest; warn if it takes too long */
                 if ((t2_us - t1_us) > 10000)
-                    syslog(LOG_ERR, "mutex_lock: blocked %u usec", (unsigned)(t2_us - t1_us));
+                    opensolo_syslog(LOG_ERR, "mutex_lock: blocked %u usec", (unsigned)(t2_us - t1_us));
                 packet.tc_send_us = clock_gettime_us(CLOCK_MONOTONIC);
                 for (i = 0; i < dest_table.num_dest; i++) {
                     // send the whole LinkPacket or just the mavlink payload
@@ -694,7 +703,7 @@ static void *tlm_main(void *)
                     if (r != len) {
                         dest_table.dest[i].err_cnt++;
                         if ((now_us - dest_table.dest[i].err_us) >= 1000000) {
-                            syslog(LOG_ERR, "[%u] sendto %s:%d returned %d, expected %d: %s",
+                            opensolo_syslog(LOG_ERR, "[%u] sendto %s:%d returned %d, expected %d: %s",
                                    dest_table.dest[i].err_cnt,
                                    inet_ntoa(dest_table.dest[i].sa.sin_addr),
                                    ntohs(dest_table.dest[i].sa.sin_port), r, len, strerror(errno));
@@ -724,7 +733,7 @@ static void *tlm_main(void *)
                 t2_us = clock_gettime_us(CLOCK_MONOTONIC);
                 /* recvfrom should not block; warn if it does */
                 if ((t2_us - t1_us) > 10000)
-                    syslog(LOG_ERR, "recvfrom(gcs): blocked %u usec", (unsigned)(t2_us - t1_us));
+                    opensolo_syslog(LOG_ERR, "recvfrom(gcs): blocked %u usec", (unsigned)(t2_us - t1_us));
 
                 pkts_up_total++;
 
@@ -735,7 +744,7 @@ static void *tlm_main(void *)
                                sizeof(sa_solo)) != res) {
                         int skipped;
                         if ((skipped = can_log_error(now_us)) >= 0)
-                            syslog(LOG_ERR, "[%u] sendto %s:%d: %s", skipped,
+                            opensolo_syslog(LOG_ERR, "[%u] sendto %s:%d: %s", skipped,
                                    inet_ntoa(sa_solo.sin_addr), ntohs(sa_solo.sin_port),
                                    strerror(errno));
                     }
@@ -791,7 +800,7 @@ static void *tlm_main(void *)
             }
 #endif
 
-            syslog(LOG_INFO, "%s", msg);
+            opensolo_syslog(LOG_INFO, "%s", msg);
 
             sources_clear();
             pkts_down_total = 0;
@@ -812,12 +821,12 @@ static int start_tlm_main(void)
     int r;
 
     if ((r = pthread_create(&tlm_ctx, NULL, tlm_main, NULL)) != 0) {
-        syslog(LOG_ERR, "start_tlm_main: pthread_create returned %d", r);
+        opensolo_syslog(LOG_ERR, "start_tlm_main: pthread_create returned %d", r);
         return 1;
     }
 
     if ((r = pthread_setname_np(tlm_ctx, "tlm_main")) != 0) {
-        syslog(LOG_ERR, "start_tlm_main: pthread_setname_np returned %d", r);
+        opensolo_syslog(LOG_ERR, "start_tlm_main: pthread_setname_np returned %d", r);
         return 1;
     }
 
@@ -825,7 +834,7 @@ static int start_tlm_main(void)
     memset(&sp, 0, sizeof(sp));
     sp.sched_priority = TC_MAIN_PRIORITY;
     if ((r = pthread_setschedparam(tlm_ctx, SCHED_FIFO, &sp)) != 0) {
-        syslog(LOG_ERR, "start_tlm_main: pthread_setschedparam returned %d", r);
+        opensolo_syslog(LOG_ERR, "start_tlm_main: pthread_setschedparam returned %d", r);
         return 1;
     }
 
@@ -840,11 +849,11 @@ int main(int argc, char *argv[])
     // initialize logging
     //
 
-    openlog("tlm", LOG_NDELAY, LOG_LOCAL1);
+    opensolo_openlog("tlm", LOG_NDELAY, LOG_LOCAL1);
 
-    setlogmask(LOG_UPTO(LOG_INFO));
+    opensolo_setlogmask(LOG_UPTO(LOG_INFO));
 
-    syslog(LOG_INFO, "telem_ctrl starting: built " __DATE__ " " __TIME__);
+    opensolo_syslog(LOG_INFO, "telem_ctrl starting: built " __DATE__ " " __TIME__);
 
     //
     // read configuration
@@ -852,31 +861,31 @@ int main(int argc, char *argv[])
 
     INIReader reader("/etc/sololink.conf");
     if (reader.ParseError() < 0) {
-        syslog(LOG_CRIT, "can't parse /etc/sololink.conf");
+        opensolo_syslog(LOG_CRIT, "can't parse /etc/sololink.conf");
         exit(1);
     }
 
     std::string s1 = reader.Get("solo", "mavDestIp", "127.0.0.1");
     const char *stm32_ip = s1.c_str();
     short stm32_port_hbo = reader.GetInteger("solo", "mavDestPort", 5015);
-    syslog(LOG_INFO, "stm32 @ %s:%d", stm32_ip, stm32_port_hbo);
+    opensolo_syslog(LOG_INFO, "stm32 @ %s:%d", stm32_ip, stm32_port_hbo);
 
     std::string s2 = reader.Get("solo", "tlogDestIp", "127.0.0.1");
     const char *tlog_ip = s2.c_str();
     short tlog_port_hbo = reader.GetInteger("solo", "tlogDestPort", 14583);
-    syslog(LOG_INFO, "tlog @ %s:%d", tlog_ip, tlog_port_hbo);
+    opensolo_syslog(LOG_INFO, "tlog @ %s:%d", tlog_ip, tlog_port_hbo);
 
     telem_dest_port_hbo = reader.GetInteger("solo", "telemDestPort", 14550);
-    syslog(LOG_INFO, "telem_dest_port = %d", telem_dest_port_hbo);
+    opensolo_syslog(LOG_INFO, "telem_dest_port = %d", telem_dest_port_hbo);
 
     use_gps_time = reader.GetBoolean("solo", "useGpsTime", true) ? 1 : 0;
-    syslog(LOG_INFO, "use_gps_time = %d", use_gps_time);
+    opensolo_syslog(LOG_INFO, "use_gps_time = %d", use_gps_time);
 
     uplink_tos = reader.GetInteger("solo", "telemUpTos", IP_TOS_DEFAULT);
-    syslog(LOG_INFO, "uplink_tos = 0x%02x", uplink_tos);
+    opensolo_syslog(LOG_INFO, "uplink_tos = 0x%02x", uplink_tos);
 
     gcs_tos = reader.GetInteger("solo", "telemGcsTos", IP_TOS_DEFAULT);
-    syslog(LOG_INFO, "gcs_tos = 0x%02x", gcs_tos);
+    opensolo_syslog(LOG_INFO, "gcs_tos = 0x%02x", gcs_tos);
 
     // Stations where downlink packets will be forwarded. Solo sends all
     // mavlink to this process, and this process figures out who needs them
@@ -905,7 +914,7 @@ int main(int argc, char *argv[])
     //
 
     if (start_tlm_main() != 0) {
-        syslog(LOG_ERR, "telem_ctrl: error starting tlm_main");
+        opensolo_syslog(LOG_ERR, "telem_ctrl: error starting tlm_main");
         exit(1);
     }
 
@@ -918,7 +927,7 @@ int main(int argc, char *argv[])
     // socket that talks to the hostapd process.)
     void *hostapd_handle = hostapd_ctrl_new("wlan0-ap");
     if (hostapd_handle == NULL) {
-        syslog(LOG_CRIT, "can't create connection to hostapd");
+        opensolo_syslog(LOG_CRIT, "can't create connection to hostapd");
         exit(1);
     }
 

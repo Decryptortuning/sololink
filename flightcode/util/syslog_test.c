@@ -5,7 +5,8 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <syslog.h>
+#include <string.h>
+#include "opensolo_log.h"
 #include <unistd.h>
 #include "syslog_test.h"
 
@@ -39,7 +40,7 @@ int syslog_test(void)
         goto syslog_test_exit_1;
     }
 
-    openlog("test", 0, LOG_LOCAL0);
+    opensolo_openlog("test", 0, LOG_LOCAL0);
 
     char msg[256];
 
@@ -50,7 +51,7 @@ int syslog_test(void)
         goto syslog_test_exit_2;
     }
 
-    syslog(LOG_INFO, "hello!");
+    opensolo_syslog(LOG_INFO, "hello!");
 
     // should be a message
     if (recv(fd, msg, sizeof(msg), 0) <= 0) {
@@ -75,7 +76,7 @@ int syslog_test(void)
     int msgs_sent = 200;
     int n;
     for (n = 0; n < msgs_sent; n++)
-        syslog(LOG_INFO, "hello!");
+        opensolo_syslog(LOG_INFO, "hello!");
 
     // should get fewer than that back
     n = 0;
@@ -93,7 +94,7 @@ int syslog_test(void)
     }
 
     // on the next one, we get the drop message then the new message
-    syslog(LOG_INFO, "hello!");
+    opensolo_syslog(LOG_INFO, "hello!");
     n = 0;
     while ((r = recv(fd, msg, sizeof(msg), 0)) > 0) {
         // msg[r] = '\0'; // msg is not '\0' terminated
@@ -112,7 +113,7 @@ int syslog_test(void)
         // create a string of length n
         memset(msg, 'X', n);
         msg[n] = '\0';
-        syslog(LOG_INFO, "%s", msg);
+        opensolo_syslog(LOG_INFO, "%s", msg);
         memset(msg, 0, sizeof(msg));
         if ((r = recv(fd, msg, sizeof(msg), 0)) <= 0) {
             fprintf(stderr, "syslog_test: expected message (%s)\n", strerror(errno));
@@ -122,7 +123,7 @@ int syslog_test(void)
         msg[r] = '\0'; // msg is not '\0' terminated
         // syslog.c was compiled with SYSLOG_MSG_MAX, so the total length of
         // the returned message should be less than that
-        if (strlen(msg) >= (SYSLOG_MSG_MAX - 1)) {
+        if (strlen(msg) >= SYSLOG_MSG_MAX) {
             fprintf(stderr, "syslog_test: message overflow\n");
             status = 1;
             goto syslog_test_exit_2;
@@ -133,7 +134,7 @@ int syslog_test(void)
         msg[n] = '%';
         msg[n + 1] = 'd';
         msg[n + 2] = '\0';
-        syslog(LOG_INFO, msg, 1234);
+        opensolo_syslog(LOG_INFO, msg, 1234);
         memset(msg, 0, sizeof(msg));
         if ((r = recv(fd, msg, sizeof(msg), 0)) <= 0) {
             fprintf(stderr, "syslog_test: expected message (%s)\n", strerror(errno));
@@ -143,7 +144,7 @@ int syslog_test(void)
         msg[r] = '\0'; // msg is not '\0' terminated
         // syslog.c was compiled with SYSLOG_MSG_MAX, so the total length of
         // the returned message should be less than that
-        if (strlen(msg) >= (SYSLOG_MSG_MAX - 1)) {
+        if (strlen(msg) >= SYSLOG_MSG_MAX) {
             fprintf(stderr, "syslog_test: message overflow\n");
             status = 1;
             goto syslog_test_exit_2;
@@ -152,7 +153,7 @@ int syslog_test(void)
     }
 
 syslog_test_exit_2:
-    closelog();
+    opensolo_closelog();
     unlink(SYSLOG_SOCK_NAME);
 
 syslog_test_exit_1:

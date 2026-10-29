@@ -1,4 +1,4 @@
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -27,7 +27,7 @@ PacketHandler::PacketHandler(string ipaddr, int port, int tos, int pktID) : _pkt
 
     /* create a UDP socket */
     if ((_sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        syslog(LOG_ERR, "pkt: cannot create socket");
+        opensolo_syslog(LOG_ERR, "pkt: cannot create socket");
         return;
     }
 
@@ -41,13 +41,13 @@ PacketHandler::PacketHandler(string ipaddr, int port, int tos, int pktID) : _pkt
     _sock.sin_port = htons(port);
 
     if (bind(_sock_fd, (struct sockaddr *)&_sock, sizeof(_sock)) < 0) {
-        syslog(LOG_ERR, "pkt: bind failed on port %d", port);
+        opensolo_syslog(LOG_ERR, "pkt: bind failed on port %d", port);
         return;
     }
 
     setsockopt(_sock_fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
 
-    syslog(LOG_INFO, "pkt: opened port %d", port);
+    opensolo_syslog(LOG_INFO, "pkt: opened port %d", port);
 }
 
 int PacketHandler::upHandler(char serBuf[], int len)
@@ -85,7 +85,7 @@ void PacketHandler::downHandler(int ser_fd, uint32_t debug)
     // a select()
     recvlen = recvfrom(_sock_fd, &buf[1], BUFSIZE, 0, (struct sockaddr *)&_sock, &addrlen);
     if (recvlen < 0) {
-        syslog(LOG_ERR, "pkt: recvfrom failed");
+        opensolo_syslog(LOG_ERR, "pkt: recvfrom failed");
         return;
     }
 
@@ -98,7 +98,7 @@ void PacketHandler::downHandler(int ser_fd, uint32_t debug)
     // Remember that we prepended the packet type
     encodedLen = slipEnc->encode(buf, recvlen + 1);
     if (encodedLen < 0) {
-        syslog(LOG_ERR, "pkt: slip encode error (len=%d)", recvlen + 1);
+        opensolo_syslog(LOG_ERR, "pkt: slip encode error (len=%d)", recvlen + 1);
         return;
     }
 
@@ -117,9 +117,9 @@ void PacketHandler::downHandler(int ser_fd, uint32_t debug)
             m -= n;
         }
 
-        syslog(LOG_INFO, "%s", dbgBuf);
+        opensolo_syslog(LOG_INFO, "%s", dbgBuf);
     }
 
     if (write(ser_fd, msg, encodedLen) != encodedLen)
-        syslog(LOG_ERR, "pkt: could not write to serial port");
+        opensolo_syslog(LOG_ERR, "pkt: could not write to serial port");
 }

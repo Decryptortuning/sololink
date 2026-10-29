@@ -1,5 +1,5 @@
 
-#include <syslog.h>
+#include "opensolo_log.h"
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -171,7 +171,7 @@ void Commander::send_clients(const void *data, int data_len)
         } else {
             //cout << "send_clients: sent to " << *it << endl;
             if (drops > 0) {
-                syslog(LOG_INFO, "cmd: dropped %d packets", drops);
+                opensolo_syslog(LOG_INFO, "cmd: dropped %d packets", drops);
                 drops = 0;
             }
         }
