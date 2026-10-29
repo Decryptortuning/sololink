@@ -12,6 +12,9 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
+from types import SimpleNamespace
+import stat
 
 HERE = Path(__file__).resolve().parents[1]
 
@@ -90,6 +93,30 @@ sys.exit(subprocess.call([sys.executable, os.environ["RRSYNC_SOURCE"], "-wo", "-
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual((self.dest / "2.BIN").read_bytes(), b"flight-two")
 
+    def test_cycle_real_exec_chain_fd_binding_and_invalid_source_preservation(self):
+        log = self.root / "log"
+        log.mkdir()
+        self.src = log / "dataflash"
+        self.src.mkdir()
+        (self.src / "9.BIN").write_bytes(b"growing-flight")
+        (self.dest / "old.BIN").write_bytes(b"stale")
+        command = sender.transfer_command(self.src, self.root / "key", self.root / "known")
+        env = dict(self.env, EXPECTED_SSH_COMMAND=command[command.index("-e") + 1])
+        with mock.patch.dict(os.environ, env):
+            with mock.patch.object(sender, "transfer_credentials", return_value=(self.root / "key", self.root / "known")):
+                # Real ionice -> nice -> rsync -> local SSH shim -> upstream rrsync.
+                sender.transfer_cycle(log, lambda _: ("mounted", log.stat().st_dev))
+                self.assertEqual((self.dest / "9.BIN").read_bytes(), b"growing-flight")
+                self.assertFalse((self.dest / "old.BIN").exists())
+                before = {p.name: p.read_bytes() for p in self.dest.iterdir()}
+                with self.assertRaises(RuntimeError):
+                    sender.transfer_cycle(log, mock.Mock(side_effect=RuntimeError("mount lost")))
+                self.assertEqual(before, {p.name: p.read_bytes() for p in self.dest.iterdir()})
+                with (self.src / "9.BIN").open("ab") as stream:
+                    stream.write(b"-completed")
+                sender.transfer_cycle(log, lambda _: ("mounted", log.stat().st_dev))
+                self.assertEqual((self.dest / "9.BIN").read_bytes(), b"growing-flight-completed")
+
     def test_receiver_rejects_remote_shell_sender_escape_and_unsafe_options(self):
         for command in ("sh -c id", "rsync --server --sender -r . .",
                         "rsync --server -r --delete . ../outside",
@@ -157,6 +184,104 @@ sys.exit(subprocess.call([sys.executable, os.environ["RRSYNC_SOURCE"], "-wo", "-
             provision.pair(drone, controller)
         with self.assertRaises(ValueError):
             provision.pair(drone, drone)
+
+
+class MountedSourceTests(unittest.TestCase):
+    """Exercise the actual cycle; only the kernel mount observation is injected."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.log = Path(self.temp.name) / "log"
+        self.log.mkdir()
+        self.src = self.log / "dataflash"
+        self.src.mkdir()
+        for i in range(55):
+            (self.src / (str(i) + ".BIN")).write_bytes(b"record")
+        self.mount = ("mount-id", self.log.stat().st_dev)
+
+    def test_mountinfo_parser_accepts_only_expected_whole_writable_filesystem(self):
+        device = self.log.parent / "fake-device"
+        info = self.log.parent / "mountinfo"
+        dev = self.log.stat().st_dev
+        major_minor = "%d:%d" % (os.major(dev), os.minor(dev))
+        actual_stat = Path.stat
+        def kernel_stat(path, *args, **kwargs):
+            if path == device:
+                return SimpleNamespace(st_mode=stat.S_IFBLK | 0o600, st_rdev=dev)
+            return actual_stat(path, *args, **kwargs)
+        good = "21 1 %s / %s rw,relatime - ext3 /dev/alias rw\n" % (major_minor, self.log)
+        with mock.patch.object(Path, "stat", kernel_stat):
+            info.write_text(good)
+            self.assertEqual(sender.mounted_log(self.log, device, info), ("21", dev))
+            for bad in ("", good + good, good.replace(major_minor, "999:999"),
+                        good.replace(" - ext3 ", " - tmpfs "), good.replace(" / ", " /subdir "),
+                        good.replace(" rw,relatime ", " ro,relatime ")):
+                with self.subTest(mountinfo=bad):
+                    info.write_text(bad)
+                    with self.assertRaises(RuntimeError):
+                        sender.mounted_log(self.log, device, info)
+
+    def test_absent_mount_does_not_prune_initialize_or_transfer(self):
+        missing = self.log / "absent"
+        with mock.patch.object(sender, "transfer_credentials") as credentials:
+            with self.assertRaises(RuntimeError):
+                sender.transfer_cycle(missing, mock.Mock(side_effect=RuntimeError("unmounted")))
+            credentials.assert_not_called()
+        self.assertFalse(missing.exists())
+        self.assertEqual(len(list(self.src.glob("*.BIN"))), 55)
+
+    def test_symlink_paths_fail_before_mount_device_lookup(self):
+        for path in (self.log / "alias", self.src):
+            if path == self.src:
+                self.src.rename(self.log / "real-source")
+            path.symlink_to(self.log / "real-source")
+            with self.assertRaises(RuntimeError):
+                sender.mounted_log(path if path.name == "alias" else self.log)
+            path.unlink()
+
+    def test_mount_lost_before_prune_preserves_logs(self):
+        check = mock.Mock(side_effect=[self.mount, self.mount, RuntimeError("unmounted")])
+        with mock.patch.object(sender.subprocess, "run") as run:
+            with self.assertRaises(RuntimeError):
+                sender.transfer_cycle(self.log, check)
+            run.assert_not_called()
+        self.assertEqual(len(list(self.src.glob("*.BIN"))), 55)
+
+    def test_mount_lost_before_transfer_never_calls_rsync(self):
+        check = mock.Mock(side_effect=[self.mount, self.mount, self.mount, RuntimeError("unmounted")])
+        with mock.patch.object(sender, "transfer_credentials", return_value=(Path("key"), Path("host"))):
+            with mock.patch.object(sender.subprocess, "run") as run:
+                with self.assertRaises(RuntimeError):
+                    sender.transfer_cycle(self.log, check)
+                run.assert_not_called()
+        self.assertFalse(list(self.src.glob(".transfer-*")))
+
+    def test_valid_cycle_prunes_stale_snapshot_and_binds_transfer(self):
+        stale = self.src / ".transfer-abandoned"
+        stale.mkdir(mode=0o700)
+        (stale / "old").write_text("old")
+        def inspect(command, **kwargs):
+            source = Path(command[-2])
+            self.assertEqual(len(list(source.glob("[0-9]*.BIN"))), 50)
+            self.assertEqual((source / "RECENT.BIN").read_bytes(), b"record")
+            self.assertTrue(kwargs["pass_fds"])
+            self.assertIn("--delete", command)
+        with mock.patch.object(sender, "transfer_credentials", return_value=(Path("key"), Path("host"))):
+            with mock.patch.object(sender.subprocess, "run", side_effect=inspect):
+                sender.transfer_cycle(self.log, lambda _: self.mount)
+        self.assertFalse(stale.exists())
+        self.assertEqual(os.readlink(self.log / "RECENT.BIN"), "dataflash/54.BIN")
+        self.assertFalse(list(self.src.glob(".transfer-*")))
+
+    def test_valid_empty_mount_still_transfers_and_interruption_cleans_snapshot(self):
+        for path in self.src.iterdir():
+            path.unlink()
+        with mock.patch.object(sender, "transfer_credentials", return_value=(Path("key"), Path("host"))):
+            with mock.patch.object(sender.subprocess, "run", side_effect=subprocess.TimeoutExpired("rsync", 180)) as run:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    sender.transfer_cycle(self.log, lambda _: self.mount)
+                run.assert_called_once()
+        self.assertFalse(list(self.src.iterdir()))
 
 
 if __name__ == "__main__":

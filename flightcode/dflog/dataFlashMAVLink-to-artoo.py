@@ -96,27 +96,85 @@ def transfer_command(source, identity, known_hosts):
             "--bwlimit=100", "--timeout=60", "-e", ssh, str(source) + "/", DESTINATION]
 
 
+def mounted_log(log=Path("/log"), device=Path("/dev/mmcblk0p4"),
+                mountinfo=Path("/proc/self/mountinfo")):
+    """Require the fstab LOG block device, a whole ext filesystem, and real paths.
+
+    Mount IDs distinguish a replacement mount of the same block device. Device
+    major/minor comparison also works when mountinfo names a /dev/disk alias.
+    """
+    log = Path(log)
+    if log.is_symlink() or (log / "dataflash").is_symlink():
+        raise RuntimeError("LOG and dataflash must not be symlinks")
+    dev = Path(device).stat()
+    if not stat.S_ISBLK(dev.st_mode):
+        raise RuntimeError("expected LOG block device is unavailable")
+    expected = "%d:%d" % (os.major(dev.st_rdev), os.minor(dev.st_rdev))
+    matches = []
+    for line in Path(mountinfo).read_text().splitlines():
+        before, after = line.split(" - ", 1)
+        fields, fs = before.split(), after.split()
+        if fields[4] == str(log):
+            matches.append((fields, fs))
+    if len(matches) != 1:
+        raise RuntimeError("LOG filesystem is not mounted exactly once")
+    fields, fs = matches[0]
+    if fields[2] != expected or fields[3] != "/" or fs[0] not in ("ext3", "ext4"):
+        raise RuntimeError("unexpected LOG filesystem")
+    if "rw" not in fields[5].split(",") or log.stat().st_dev != dev.st_rdev:
+        raise RuntimeError("LOG filesystem is not writable or has been replaced")
+    return fields[0], dev.st_rdev
+
+
+def transfer_cycle(log=Path("/log"), mount_check=mounted_log):
+    """Bind mutations and rsync to open directories on the accepted mount.
+
+    Rechecking alone has an unmount/path-lookup race. O_NOFOLLOW directory fds
+    retain the original filesystem through lazy unmounts; /proc/self/fd paths
+    cannot turn into an empty fallback overlay. Recheck before rsync as well.
+    """
+    log = Path(log)
+    accepted = mount_check(log)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    with contextlib.ExitStack() as stack:
+        log_fd = os.open(log, flags)
+        stack.callback(os.close, log_fd)
+        if os.fstat(log_fd).st_dev != accepted[1] or mount_check(log) != accepted:
+            raise RuntimeError("LOG mount changed during initialization")
+        bound_log = Path("/proc/self/fd/%d" % log_fd)
+        (bound_log / "dataflash").mkdir(exist_ok=True)
+        source_fd = os.open("dataflash", flags, dir_fd=log_fd)
+        stack.callback(os.close, source_fd)
+        if os.fstat(source_fd).st_dev != accepted[1]:
+            raise RuntimeError("dataflash is on an unexpected filesystem")
+        source = Path("/proc/self/fd/%d" % source_fd)
+        # Cleanup is inside retry handling and only ever touches the bound LOG.
+        for stale in source.glob(".transfer-*"):
+            metadata = stale.lstat()
+            if (stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == os.getuid()
+                    and stat.S_IMODE(metadata.st_mode) == 0o700):
+                shutil.rmtree(stale)
+        if mount_check(log) != accepted:
+            raise RuntimeError("LOG mount changed before pruning")
+        for old in log_files(source)[:-50]:
+            old.unlink()
+        # Public RECENT links target the real relative dataflash path, not fds.
+        update_links(bound_log / "dataflash", bound_log)
+        identity, known_hosts = transfer_credentials()
+        with snapshot(source) as staging:
+            if mount_check(log) != accepted:
+                raise RuntimeError("LOG mount changed before transfer")
+            subprocess.run(transfer_command(staging, identity, known_hosts), check=True,
+                           pass_fds=(source_fd,), stdout=subprocess.DEVNULL, timeout=180)
+
+
 def main():
     logging.basicConfig(level=logging.INFO,
                         handlers=[logging.handlers.SysLogHandler(address="/dev/log")])
-    SOURCE.mkdir(parents=True, exist_ok=True)
-    # A power loss can leave a hardlink view behind. Only our private real
-    # directories qualify for cleanup; other paths are never followed.
-    for stale in SOURCE.glob(".transfer-*"):
-        metadata = stale.lstat()
-        if (stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == os.getuid()
-                and stat.S_IMODE(metadata.st_mode) == 0o700):
-            shutil.rmtree(stale)
     last_error = None
     while True:
         try:
-            for old in log_files(SOURCE)[:-50]:
-                old.unlink()
-            update_links(SOURCE, SOURCE.parent)
-            identity, known_hosts = transfer_credentials()
-            with snapshot(SOURCE) as staging:
-                subprocess.run(transfer_command(staging, identity, known_hosts), check=True,
-                               stdout=subprocess.DEVNULL, timeout=180)
+            transfer_cycle()
             if last_error is not None:
                 LOG.info("controller log transfer established")
             last_error = None
