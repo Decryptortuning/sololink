@@ -9,9 +9,9 @@
 #
 # Now a make in this directory should work.
 
-VPATH = ../util ../mavlink/c_library/ardupilotmega
+VPATH = ../util
 
-INCS = -I../util -I../mavlink/c_library/ardupilotmega
+INCS = -I../util
 
 CFLAGS += -Wall -O2 $(INCS)
 CXXFLAGS += -Wall -O2 $(INCS)

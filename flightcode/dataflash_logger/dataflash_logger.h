@@ -14,7 +14,7 @@
 #include "mavlink_message_handler.h"
 #include "mavlink_writer.h"
 
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 class DataFlash_Logger : public MAVLink_Message_Handler
 {

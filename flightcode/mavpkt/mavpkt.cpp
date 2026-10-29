@@ -12,7 +12,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 #include "util.h"
 

@@ -13,7 +13,7 @@
 
 #include "la-log.h"
 #include "util.h"
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 /*
 

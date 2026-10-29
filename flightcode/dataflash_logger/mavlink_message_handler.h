@@ -12,8 +12,7 @@
 #include <stdint.h>
 
 #include "INIReader.h"
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 #include <netinet/in.h>
 

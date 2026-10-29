@@ -1,7 +1,7 @@
 #ifndef _TELEM_CLIENT_H
 #define _TELEM_CLIENT_H
 
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include <sys/select.h>
 #include "INIReader.h"
 

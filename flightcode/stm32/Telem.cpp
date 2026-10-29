@@ -9,7 +9,7 @@
 #include "SerialLog.h"
 #include "packetTypes.h"
 #include "net_wmm.h"
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include "SLIP.h"
 #include "util.h"
 #include "link_packet.h"

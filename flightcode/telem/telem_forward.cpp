@@ -27,8 +27,7 @@
 #include <poll.h>
 #include "util.h"
 #include "RcLock.h"
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include "../ini/cpp/INIReader.h"
 #include <signal.h>
 #include <syslog.h>

@@ -4,7 +4,6 @@ import os, sys, time, fnmatch
 import serial.tools.list_ports
 from pymavlink import mavutil
 from pymavlink.mavutil import mavlink, mavserial, SerialPort
-from pymavlink.dialects.v10 import ardupilotmega
 from pymavlink.rotmat import Vector3
 import setup_comutation, setup_mavlink
 import serial

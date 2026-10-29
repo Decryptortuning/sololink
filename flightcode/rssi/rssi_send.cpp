@@ -8,7 +8,7 @@
 #include <linux/nl80211.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include "util.h"
 
 /*

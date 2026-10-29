@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include "INIReader.h"
 #include "telem_client.h"
 

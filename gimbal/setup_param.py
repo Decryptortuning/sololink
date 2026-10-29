@@ -6,7 +6,7 @@ Utility for loading firmware into the 3DR Gimbal.
 """
 import time
 from pymavlink.mavparm import MAVParmDict
-from pymavlink.dialects.v10.ardupilotmega import MAV_PARAM_TYPE_REAL32
+from pymavlink.dialects.v10.solo import MAV_PARAM_TYPE_REAL32
 from pymavlink.rotmat import Vector3
 import setup_mavlink
 

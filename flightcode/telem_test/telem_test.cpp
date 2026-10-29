@@ -13,7 +13,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 
 #define SERIAL_DEV_NAME "/dev/ttymxc1"

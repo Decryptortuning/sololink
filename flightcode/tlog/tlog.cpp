@@ -22,8 +22,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include "Log.h"
-#include "../mavlink/c_library/common/mavlink.h"
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include "util.h"
 
 using namespace std;

@@ -18,8 +18,7 @@
 #include <fstream>
 #include <poll.h>
 #include "util.h"
-#include "../mavlink/c_library/ardupilotmega/mavlink.h"
-#include "../mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 #include <sstream>
 #include <signal.h>
 #include <pthread.h>
