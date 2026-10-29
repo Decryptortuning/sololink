@@ -47,8 +47,16 @@ class TransferTests(unittest.TestCase):
         ssh.write_text('''#!/usr/bin/python3
 import os, shlex, subprocess, sys
 args = sys.argv[1:]
-i = args.index("sololog@10.1.1.1")
-os.environ["SSH_ORIGINAL_COMMAND"] = " ".join(args[i+1:])
+# Match the complete transport option prefix emitted by transfer_command,
+# followed by rsync's explicit login user/host. Reject unrelated invocations.
+expected = shlex.split(os.environ["EXPECTED_SSH_COMMAND"])[1:]
+expected += ["-l", "sololog", "10.1.1.1"]
+if args[:len(expected)] != expected:
+    raise SystemExit("unexpected local transport argv")
+remote = args[len(expected):]
+if remote[:2] != ["rsync", "--server"]:
+    raise SystemExit("expected rsync receiver command")
+os.environ["SSH_ORIGINAL_COMMAND"] = " ".join(remote)
 sys.exit(subprocess.call([sys.executable, os.environ["RRSYNC_SOURCE"], "-wo", "-munge", os.environ["RECEIVER_ROOT"]]))
 ''')
         ssh.chmod(0o755)
@@ -57,7 +65,8 @@ sys.exit(subprocess.call([sys.executable, os.environ["RRSYNC_SOURCE"], "-wo", "-
 
     def sync(self, source):
         command = sender.transfer_command(source, self.root / "key", self.root / "known")
-        return subprocess.run(command[4:], env=self.env, capture_output=True, timeout=15)
+        env = dict(self.env, EXPECTED_SSH_COMMAND=command[command.index("-e") + 1])
+        return subprocess.run(command[4:], env=env, capture_output=True, timeout=15)
 
     def test_actual_producer_partial_delete_and_recent_files(self):
         (self.src / "1.BIN").write_bytes(b"flight-one")
@@ -99,7 +108,8 @@ sys.exit(subprocess.call([sys.executable, os.environ["RRSYNC_SOURCE"], "-wo", "-
         (self.src / "link").symlink_to(outside)
         command = sender.transfer_command(self.src, self.root / "key", self.root / "known")[4:]
         command[1] = "-rlt"
-        result = subprocess.run(command, env=self.env, capture_output=True, timeout=15)
+        env = dict(self.env, EXPECTED_SSH_COMMAND=command[command.index("-e") + 1])
+        result = subprocess.run(command, env=env, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertTrue((self.dest / "link").is_symlink())
         self.assertTrue(os.readlink(self.dest / "link").startswith("/rsyncd-munged/"))
