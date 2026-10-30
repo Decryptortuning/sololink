@@ -24,7 +24,13 @@ reserved6(u16=0), RCC reset flags8(u32), retained fault12(16u32),
 metrics76(32u32). Flags: bit0 fault valid, bit1 bench metrics enabled.
 
 Fault words: magic, format, IPSR, EXC_RETURN, rawSP, PC, LR, xPSR, CFSR, HFSR,
-MMFAR, BFAR, currentTask, flags, reserved, checksum. Invalid records are zero.
+MMFAR, BFAR, currentTask, flags, stage, checksum. Invalid records are zero. Retained format
+is0x00010040, magic0x41525446, checksum FNV1a over bytes4–59. Record flags bit0
+means valid exception frame, bit1 means software startup failure. Exceptions
+use stage0 and flags0/1; software failures use flags2 and stage1–10. The CLI
+validates this contract and checksum before labeling a retained record valid.
+Stages:1HSIready,2HSIswitch,3HSEready,4PLLready,5PLLswitch,6ADC_DMA,
+7ADCresetcal,8ADCcal,9ADCsync(unused),10batteryfirstsample.
 Metrics0–8: txBytes,rxBytes,malformedBytes,overruns,dropped,lineErrors,
 rejectedFrames,txRejected,txErrors.9–16: stackUsed,heapUsed,heapPeak,OOM,
 heartbeatPosted,heartbeatServed,coalesced,maxLoopGapTicks.17–23 task counts;

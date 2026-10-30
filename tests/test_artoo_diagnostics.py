@@ -22,6 +22,28 @@ class DiagnosticsTests(unittest.TestCase):
         data[0]=2
         with self.assertRaises(ValueError): diag.decode(data,123)
 
+    def test_fault_record_validation(self):
+        words = [0x41525446, 0x00010040] + [0] * 14
+        def encoded():
+            raw = struct.pack('<16I', *words)
+            checksum = 2166136261
+            for value in raw[4:60]:
+                checksum = ((checksum ^ value) * 16777619) & 0xffffffff
+            return raw[:60] + struct.pack('<I', checksum)
+        self.assertEqual(diag.validate_fault(encoded())['stage'], 0)
+        words[13:15] = [2, 10]
+        self.assertEqual(diag.validate_fault(encoded())['stage'], 10)
+        damaged = bytearray(encoded()); damaged[20] ^= 1
+        with self.assertRaises(ValueError): diag.validate_fault(damaged)
+        for flag, stage in [(0, 1), (1, 2), (2, 0), (2, 11), (3, 1), (4, 0)]:
+            words[13:15] = [flag, stage]
+            with self.assertRaises(ValueError): diag.validate_fault(encoded())
+        words[13:15] = [0, 0]
+        words[0] = 0
+        with self.assertRaises(ValueError): diag.validate_fault(encoded())
+        words[0] = 0x41525446; words[1] = 1
+        with self.assertRaises(ValueError): diag.validate_fault(encoded())
+
     def test_actual_bridge_and_telem_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)

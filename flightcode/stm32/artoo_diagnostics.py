@@ -10,7 +10,19 @@ COUNTERS = ['tx_bytes', 'rx_bytes', 'malformed_bytes', 'overruns', 'dropped',
             'stack_used', 'heap_used', 'heap_peak', 'oom', 'heartbeat_posted',
             'heartbeat_served', 'heartbeat_coalesced', 'max_loop_gap_ticks']
 FAULT = ['magic', 'format', 'ipsr', 'exc_return', 'raw_sp', 'pc', 'lr', 'xpsr',
-         'cfsr', 'hfsr', 'mmfar', 'bfar', 'current_task', 'flags', 'reserved', 'checksum']
+         'cfsr', 'hfsr', 'mmfar', 'bfar', 'current_task', 'flags', 'stage', 'checksum']
+
+def validate_fault(raw):
+    words = struct.unpack('<16I', raw)
+    checksum = 2166136261
+    for value in raw[4:60]:
+        checksum = ((checksum ^ value) * 16777619) & 0xffffffff
+    exception = words[14] == 0 and words[13] in (0, 1)
+    software = words[13] == 2 and 1 <= words[14] <= 10
+    if (words[0] != 0x41525446 or words[1] != 0x00010040 or
+            not (exception or software) or words[15] != checksum):
+        raise ValueError('Invalid retained fault record')
+    return dict(zip(FAULT, words))
 
 def decode(data, token):
     if len(data) != 204:
@@ -19,7 +31,7 @@ def decode(data, token):
     if schema != 1 or flags & ~3 or length != 204 or reply_token != token or reserved:
         raise ValueError('Invalid diagnostics header or stale reply')
     reset, = struct.unpack_from('<I', data, 8)
-    fault = dict(zip(FAULT, struct.unpack_from('<16I', data, 12)))
+    fault = validate_fault(data[12:76]) if flags & 1 else None
     metrics = struct.unpack_from('<32I', data, 76)
     return {'schema': schema, 'reset_flags': reset,
             'fault_valid': bool(flags & 1), 'fault': fault if flags & 1 else None,
