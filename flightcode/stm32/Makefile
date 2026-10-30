@@ -20,6 +20,7 @@ LIBS = -lpthread
 
 SRCS_CPP = stm32.cpp
 SRCS_CPP += PacketHandler.cpp
+SRCS_CPP += Diagnostics.cpp
 SRCS_CPP += PairReq.cpp
 SRCS_CPP += RC.cpp
 SRCS_CPP += SLIP.cpp

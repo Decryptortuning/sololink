@@ -1,3 +1,4 @@
+#include "Diagnostics.h"
 
 #include <fstream>
 #include <iomanip>
@@ -123,6 +124,7 @@ SetShotInfo *setShotInfo;
 Updater *updater;
 LockoutState *lockoutState;
 AppConnected *appConn;
+Diagnostics *diagnostics;
 
 /***********************************************************************
 Debug control
@@ -297,6 +299,9 @@ void *upstream_task(void *)
                         up = rc->upHandler(&msg[1], msgLen - 1);
                         break;
                     case PKT_ID_CALIBRATE:
+                        break;
+                    case PKT_ID_DIAGNOSTICS:
+                        up = diagnostics->upHandler(&msg[1], msgLen - 1);
                         break;
                     case PKT_ID_SYS_INFO:
                         up = sysInfo->upHandler(&msg[1], msgLen - 1);
@@ -473,6 +478,11 @@ void *downstream_task(void *)
         if (appConn->getfd() >= nfds)
             nfds = appConn->getfd() + 1;
 
+        if (diagnostics->getfd() >= 0) {
+            FD_SET(diagnostics->getfd(), &fds);
+            if (diagnostics->getfd() >= nfds) nfds = diagnostics->getfd() + 1;
+        }
+
         // select timeout 0.1 sec
         // (note that select can update timeout)
         // need to time out, so if downlink stops we still see stats
@@ -482,6 +492,9 @@ void *downstream_task(void *)
         res = select(nfds, &fds, NULL, NULL, &timeout);
 
         if (res > 0) {
+
+            if (diagnostics->getfd() >= 0 && FD_ISSET(diagnostics->getfd(), &fds))
+                diagnostics->downHandler(serial_fd);
 
             // Run the appropriate downstream handler
             if (FD_ISSET(telem->getfd(), &fds)) {
@@ -747,6 +760,9 @@ int main(void)
     updater = new Updater("127.0.0.1", updaterDestPort);
     lockoutState = new LockoutState(lockoutStateDestPort);
     appConn = new AppConnected("127.0.0.1", appConnDestPort);
+    diagnostics = new Diagnostics(5027);
+    if (diagnostics->getfd() < 0)
+        opensolo_syslog(LOG_ERR, "read-only diagnostics endpoint unavailable on loopback UDP5027");
 
     /* Start the serial port */
     if (!serial_setup(baudrate)) {

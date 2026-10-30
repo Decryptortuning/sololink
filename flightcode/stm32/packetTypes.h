@@ -33,6 +33,7 @@ Match constants in artoo/src/hostProtocol.h
 #define PKT_ID_INVALID_STICK_INPUTS 25
 #define PKT_ID_SOLO_APP_CONNECTION 26
 
-#define PKT_ID_MAX 27
+#define PKT_ID_DIAGNOSTICS 27
+#define PKT_ID_MAX 28
 
 #endif //_PACKETTYPES_H

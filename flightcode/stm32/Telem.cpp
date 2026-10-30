@@ -91,9 +91,7 @@ void Telem::downHandler(int ser_fd, int verbosity)
 
         // Since this should always be mavlink, make sure its not a dataflash log type
         // Check index 5 for the message type
-        if (p_payload[5] == MAVLINK_MSG_ID_LOG_DATA ||
-            p_payload[5] == MAVLINK_MSG_ID_LOG_DATA_LEN ||
-            p_payload[5] == MAVLINK_MSG_ID_LOG_DATA_CRC)
+        if (p_payload[5] == MAVLINK_MSG_ID_LOG_DATA)
             goto move_on;
 
         /* Use the existing packet, even though we'll lose some data.
