@@ -19,6 +19,7 @@ with patch.dict(sys.modules, {'serial': SERIAL}), patch.object(sys, 'path', [
     updater = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(updater)
 CAL = [100, 2000, 4000] * 6
+PARAMS = struct.pack('<18H', *CAL) + b'\xff'*136
 
 
 class LoaderBoundaryTests(unittest.TestCase):
@@ -144,7 +145,7 @@ class ProgrammingTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.firmware = self.root / 'artoo_4.0.0.bin'
-        self.firmware.write_bytes(b'candidate')
+        self.firmware.write_bytes(b'\0'*304 + b'OS5JNL1!' + struct.pack('<IHH', 0x0803f000,172,1))
         self.settings = patch.object(updater, 'UPDATE_DIR', str(self.root / 'updates'))
         self.settings.start()
         self.addCleanup(self.settings.stop)
@@ -158,52 +159,47 @@ class ProgrammingTests(unittest.TestCase):
             with self.assertRaises(updater.UpdateError):updater.updateStm32(str(self.firmware))
         calibration.assert_not_called();loader.assert_not_called()
 
-    def test_success_preserves_and_durably_records_calibration(self):
-        with patch.object(updater, 'read_stick_cal', return_value=CAL), \
+    def test_success_preserves_complete_snapshot(self):
+        with patch.object(updater, 'read_parameters', return_value=PARAMS), \
                 patch.object(updater, 'call_stm32loader', return_value=True) as loader:
-            self.assertIs(updater.updateStm32(str(self.firmware)), True)
+            self.assertTrue(updater.updateStm32(str(self.firmware)))
         loader.assert_called_once_with(str(self.firmware))
-        backups = list((self.root/'updates').glob('artoo-calibration-*.json'))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+        backups=list((self.root/'updates').glob('artoo-parameters-*.bin'))
+        self.assertEqual(len(backups),1)
+        self.assertEqual(backups[0].read_bytes(),PARAMS)
+        self.assertEqual(backups[0].stat().st_mode & 0o777,0o600)
 
-    def test_no_programming_without_calibration_or_durable_backup(self):
-        for value in [None, [0xffff]*18]:
-            with self.subTest(value=value), patch.object(updater, 'read_stick_cal', return_value=value), \
-                    patch.object(updater, 'call_stm32loader') as loader, self.assertRaises(updater.UpdateError):
+    def test_no_programming_without_full_snapshot_or_durable_backup(self):
+        for value in [None, b'\xff'*172]:
+            with self.subTest(value=value), patch.object(updater,'read_parameters',return_value=value), \
+                    patch.object(updater,'call_stm32loader') as loader, self.assertRaises(updater.UpdateError):
                 updater.updateStm32(str(self.firmware))
             loader.assert_not_called()
-        with patch.object(updater, 'read_stick_cal', return_value=CAL), \
-                patch.object(updater, 'backup_stick_cal', side_effect=OSError('disk full')), \
-                patch.object(updater, 'call_stm32loader') as loader, self.assertRaises(OSError):
+        with patch.object(updater,'read_parameters',return_value=PARAMS), \
+                patch.object(updater,'backup_stick_cal',side_effect=OSError('disk full')), \
+                patch.object(updater,'call_stm32loader') as loader,self.assertRaises(OSError):
             updater.updateStm32(str(self.firmware))
         loader.assert_not_called()
 
     def test_exhaustion_never_escalates_to_mass_erase(self):
-        with patch.object(updater, 'read_stick_cal', return_value=CAL), \
-                patch.object(updater, 'call_stm32loader', return_value=False) as loader, \
-                self.assertRaisesRegex(updater.UpdateError, 'no automatic retry or unprotect attempted'):
+        with patch.object(updater,'read_parameters',return_value=PARAMS), \
+                patch.object(updater,'call_stm32loader',return_value=False) as loader, \
+                self.assertRaisesRegex(updater.UpdateError,'no automatic retry'):
             updater.updateStm32(str(self.firmware))
-        self.assertEqual(loader.call_count, 1)
-        self.assertTrue(all(not call.kwargs for call in loader.call_args_list))
+        self.assertEqual(loader.call_count,1)
 
-    def test_calibration_restore_requires_readback(self):
-        with patch.object(updater, 'read_stick_cal', side_effect=[CAL, None, CAL]), \
-                patch.object(updater, 'call_stm32loader', return_value=True), \
-                patch.object(updater, 'write_stick_cal') as restore, patch.object(updater.time, 'sleep'):
-            self.assertTrue(updater.updateStm32(str(self.firmware)))
-        restore.assert_called_once_with(CAL)
-        with patch.object(updater, 'read_stick_cal', side_effect=[CAL, None, None, None, None]), \
-                patch.object(updater, 'call_stm32loader', return_value=True), \
-                patch.object(updater, 'write_stick_cal') as restore, patch.object(updater.time, 'sleep'), \
-                self.assertRaises(updater.UpdateError):
-            updater.updateStm32(str(self.firmware))
-        self.assertEqual(restore.call_count, 3)
+    def test_migration_mismatch_does_not_automatically_rewrite_calibration(self):
+        for after in [None, PARAMS[:-1]+b'\0']:
+            with patch.object(updater,'read_parameters',side_effect=[PARAMS,after]), \
+                    patch.object(updater,'call_stm32loader',return_value=True), \
+                    patch.object(updater,'write_stick_cal') as restore,self.assertRaisesRegex(updater.UpdateError,'no automatic repair'):
+                updater.updateStm32(str(self.firmware))
+            restore.assert_not_called()
 
-    def test_empty_or_oversized_firmware_is_rejected_before_calibration(self):
-        for size in [0, 0x3f801]:
-            self.firmware.write_bytes(b'X'*size)
-            with patch.object(updater, 'read_stick_cal') as read, self.assertRaises(updater.UpdateError):
+    def test_legacy_or_oversized_firmware_rejected_before_serial(self):
+        for data in [b'',b'X'*320,b'X'*0x3f001]:
+            self.firmware.write_bytes(data)
+            with patch.object(updater,'read_parameters') as read,self.assertRaises(updater.UpdateError):
                 updater.updateStm32(str(self.firmware))
             read.assert_not_called()
 

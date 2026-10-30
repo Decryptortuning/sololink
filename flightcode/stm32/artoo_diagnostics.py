@@ -18,7 +18,7 @@ def validate_fault(raw):
     for value in raw[4:60]:
         checksum = ((checksum ^ value) * 16777619) & 0xffffffff
     exception = words[14] == 0 and words[13] in (0, 1)
-    software = words[13] == 2 and 1 <= words[14] <= 10
+    software = words[13] == 2 and 1 <= words[14] <= 13
     if (words[0] != 0x41525446 or words[1] != 0x00010040 or
             not (exception or software) or words[15] != checksum):
         raise ValueError('Invalid retained fault record')
@@ -38,6 +38,9 @@ def decode(data, token):
             'bench_metrics': bool(flags & 2),
             'counters': dict(zip(COUNTERS, metrics[:17])),
             'task_counts': metrics[17:24], 'task_max_ticks': metrics[24:31],
+            'watchdog': {'experimental': bool(metrics[31] & 1),
+                         'started': bool(metrics[31] & 2), 'quarantined': bool(metrics[31] & 4),
+                         'reset_streak': metrics[31] >> 8},
             'tick_hz': 1000000000}
 
 def read_snapshot():

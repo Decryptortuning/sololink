@@ -186,32 +186,28 @@ def require_controller_power_hold():
 
 
 def updateStm32(filename):
-    # Normal updates erase pages 0..126 and preserve the parameter page. Never
-    # infer readout protection from a generic failure and escalate to mass erase.
-    # Destructive recovery requires a separate, explicitly reviewed procedure.
-    if not 0 < os.path.getsize(filename) <= 0x3f800:
-        raise UpdateError("Firmware is empty or overlaps the reserved parameter page")
+    with open(filename, 'rb') as stream:
+        image = stream.read(0x3f001)
+    layout = b'OS5JNL1!' + struct.pack('<IHH', 0x0803f000, 172, 1)
+    if not 320 <= len(image) <= 0x3f000 or image[304:320] != layout:
+        raise UpdateError("Requires journal-v1 firmware bounded below page126; downgrade refused")
     require_controller_power_hold()
-    stick_cal = validate_stick_cal(read_stick_cal())
+    before = read_parameters()
+    if before is None: raise UpdateError("Missing full parameter snapshot")
+    stick_cal = validate_stick_cal(struct.unpack('<18H', before[:36]))
     backup_stick_cal(filename, stick_cal)
-    logger.info("updating once without readout protection disable")
+    fd, path = tempfile.mkstemp(prefix="artoo-parameters-", suffix=".bin", dir=UPDATE_DIR)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(before); stream.flush(); os.fsync(stream.fileno())
+    directory_fd = os.open(UPDATE_DIR, os.O_RDONLY | os.O_DIRECTORY)
+    try: os.fsync(directory_fd)
+    finally: os.close(directory_fd)
     if not call_stm32loader(filename):
         raise UpdateError("STM32 loader failed; no automatic retry or unprotect attempted")
-
-    for attempt in range(3):
-        try:
-            new_cal = validate_stick_cal(read_stick_cal())
-        except UpdateError:
-            new_cal = None
-        if new_cal == stick_cal:
-            logger.info("Update complete; stick calibration verified")
-            return True
-        logger.warning("Stick calibration changed; restoring saved values")
-        write_stick_cal(stick_cal)
-        time.sleep(1)
-    if validate_stick_cal(read_stick_cal()) != stick_cal:
-        raise UpdateError("Stick calibration restoration/readback failed")
-    logger.info("Update complete; restored stick calibration verified")
+    # No automatic calibration repair: preserve evidence of any migration error.
+    if read_parameters() != before:
+        raise UpdateError("Full172-byte parameters changed after update; no automatic repair")
+    logger.info("Update complete; complete parameters verified")
     return True
 
 # Initiate the stm32loader process to actually update the STM32 chip. Return True if successful.
@@ -220,7 +216,7 @@ def call_stm32loader(filename):
     flags = "-wvq"
 
     try:
-        s = subprocess.check_output(["stm32loader.py", flags, "-s", "127",
+        s = subprocess.check_output(["stm32loader.py", flags, "--artoo", "--artoo-backup-dir", UPDATE_DIR, "-s", "126",
                                      "-b", "115200", "-p", "/dev/ttymxc1", filename],
                                     stderr=subprocess.STDOUT)
         logger.info("stm32loader.py returned normally; output:")
@@ -258,19 +254,20 @@ def getVersionFile():
     return version
 
 
-def read_stick_cal():
+def read_parameters():
     # Updates run in runlevel 2, where the normal bridge is stopped. Own this
     # child directly so cleanup cannot leave a shell-owned bridge on the UART.
     process = subprocess.Popen(["stm32"])
     try:
         time.sleep(3)
         message = param_stored_vals_msg.fetch()
-        if not message:
-            logger.error("Could not read stick calibration")
+        if not message or len(message) != 172:
+            logger.error("Could not read complete parameters")
             return None
         try:
             params = param_stored_vals_msg.unpack(message)
-            return validate_stick_cal([value for axis in params["stickCals"] for value in axis])
+            validate_stick_cal([value for axis in params["stickCals"] for value in axis])
+            return bytes(message)
         except (KeyError, TypeError, ValueError, struct.error, UpdateError) as error:
             logger.error("Invalid calibration response: %s", error)
             return None
@@ -282,6 +279,11 @@ def read_stick_cal():
             process.kill()
             process.wait()
         time.sleep(1)
+
+
+def read_stick_cal():
+    raw = read_parameters()
+    return None if raw is None else list(struct.unpack('<18H', raw[:36]))
 
 
 def write_stick_cal(values):

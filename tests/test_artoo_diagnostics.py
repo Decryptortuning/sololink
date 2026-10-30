@@ -31,11 +31,11 @@ class DiagnosticsTests(unittest.TestCase):
                 checksum = ((checksum ^ value) * 16777619) & 0xffffffff
             return raw[:60] + struct.pack('<I', checksum)
         self.assertEqual(diag.validate_fault(encoded())['stage'], 0)
-        words[13:15] = [2, 10]
-        self.assertEqual(diag.validate_fault(encoded())['stage'], 10)
+        words[13:15] = [2, 11]
+        self.assertEqual(diag.validate_fault(encoded())['stage'], 11)
         damaged = bytearray(encoded()); damaged[20] ^= 1
         with self.assertRaises(ValueError): diag.validate_fault(damaged)
-        for flag, stage in [(0, 1), (1, 2), (2, 0), (2, 11), (3, 1), (4, 0)]:
+        for flag, stage in [(0, 1), (1, 2), (2, 0), (2, 14), (3, 1), (4, 0)]:
             words[13:15] = [flag, stage]
             with self.assertRaises(ValueError): diag.validate_fault(encoded())
         words[13:15] = [0, 0]
