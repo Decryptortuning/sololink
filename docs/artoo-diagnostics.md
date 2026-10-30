@@ -28,7 +28,7 @@ MMFAR, BFAR, currentTask, flags, reserved, checksum. Invalid records are zero.
 Metrics0–8: txBytes,rxBytes,malformedBytes,overruns,dropped,lineErrors,
 rejectedFrames,txRejected,txErrors.9–16: stackUsed,heapUsed,heapPeak,OOM,
 heartbeatPosted,heartbeatServed,coalesced,maxLoopGapTicks.17–23 task counts;
-24–30 task maximum ticks;31 reserved. Timing ticks are9MHz; durations saturate
+24–30 task maximum ticks;31 reserved. Timing values use SysTime nanoseconds (1,000,000,000 units per second); durations saturate
 at32bits and counters wrap. Bench-only values are zero in production.
 SysInfo/version bytes and the172-byte calibration format are unchanged.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read a nondestructive Artoo snapshot via the existing local UART bridge."""
 import json
-import secrets
+import os
 import socket
 import struct
 
@@ -26,10 +26,10 @@ def decode(data, token):
             'bench_metrics': bool(flags & 2),
             'counters': dict(zip(COUNTERS, metrics[:17])),
             'task_counts': metrics[17:24], 'task_max_ticks': metrics[24:31],
-            'tick_hz': 9000000}
+            'tick_hz': 1000000000}
 
 def read_snapshot():
-    token = secrets.randbelow(65536)
+    token = int.from_bytes(os.urandom(2), 'little')
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.connect(('127.0.0.1', 5027))
         sock.settimeout(1.25)

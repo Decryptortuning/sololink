@@ -15,6 +15,7 @@ class DiagnosticsTests(unittest.TestCase):
         data = bytearray(204)
         struct.pack_into('<BBHHHI', data, 0, 1, 0, 204, 123, 0, 0x20000000)
         self.assertEqual(diag.decode(data,123)['reset_flags'],0x20000000)
+        self.assertEqual(diag.decode(data,123)['tick_hz'],1000000000)
         for bad in (data[:-1], data + b'x'):
             with self.assertRaises(ValueError): diag.decode(bad,123)
         with self.assertRaises(ValueError): diag.decode(data,124)
